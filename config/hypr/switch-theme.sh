@@ -5,14 +5,14 @@
 # palette contract). Normally pywal16 generates them from the wallpaper
 # (`wal -i`); this script instead applies one of the static presets
 # under themes/ (next to this file), overwriting the same files so
-# waybar / swaync / rofi / eww / wlogout / nvim / emacs pick them up
-# (ghostty picks them up via the ghostty-theme.sh hook, see bottom).
+# waybar / swaync / rofi / eww / wlogout / nvim / emacs all pick them up.
 #
 # Each preset dir MUST carry every pywal output format the rice consumes
 # (colors-waybar.css, colors-rofi.rasi, colors-wal.vim, colors.el,
-# colors.sh) — see AGENTS.md's palette contract. Adding a consumer that
-# reads a new format means adding that file to every preset AND to
-# the cp below, or theme switching leaves it on a stale palette.
+# colors.sh, colors-zed.json, colors-hyprland.conf) — see AGENTS.md's
+# palette contract. Adding a consumer that reads a new format means
+# adding that file to every preset AND to the cp below with the same name,
+# or theme switching leaves it on a stale palette.
 #
 # Usage:
 #   switch-theme.sh <name>   apply a preset: mocha | gruvbox | tokyonight | osaka-jade
@@ -20,9 +20,9 @@
 #   switch-theme.sh current  print the active mode
 #
 # Running `wal -i <wallpaper>` switches back to wallpaper mode (it
-# overwrites these files). VLC is NOT rethemed by this script; Ghostty
-# IS — via the ghostty-theme.sh hook below (regenerates colors.conf
-# from the palette that was just copied in).
+# overwrites these files). VLC is NOT rethemed by this script. Ghostty
+# is: it can't @import CSS, so ghostty-theme.sh (called below) converts
+# colors.sh into Ghostty's own config format and reloads it.
 
 set -euo pipefail
 
@@ -44,16 +44,17 @@ apply() {
           "$THEME_SRC/$name/colors-wal.vim" \
           "$THEME_SRC/$name/colors.el" \
           "$THEME_SRC/$name/colors.sh" \
+          "$THEME_SRC/$name/colors-zed.json" \
+          "$THEME_SRC/$name/colors-hyprland.conf" \
           "$WAL_DIR/"
     echo "$name" > "$MARKER"
-    echo "Theme applied: $name (running 'wal -i' returns to wallpaper mode)"
 
-    # Ghostty can't read wal files — regenerate its colors.conf from the
-    # palette just installed (same hook hyprland.conf's wal exec-once
-    # uses), reloading ghostty if it's running.
-    if [[ -x "$SCRIPT_DIR/../ghostty/ghostty-theme.sh" ]]; then
-        "$SCRIPT_DIR/../ghostty/ghostty-theme.sh" >/dev/null
-    fi
+    # Ghostty too — it reads its own colors.conf, not wal's CSS/rasi
+    # formats (see config/ghostty/ghostty-theme.sh). Never let a hook
+    # hiccup abort the rest of the switch.
+    "$HOME/.config/ghostty/ghostty-theme.sh" || true
+
+    echo "Theme applied: $name (running 'wal -i' returns to wallpaper mode)"
 
     # Reload the components that read colors at startup.
     if command -v waybar >/dev/null 2>&1 && pgrep -x waybar >/dev/null 2>&1; then

@@ -1,5 +1,10 @@
+// zed settings. Theme: "Pywal" lives in ~/.config/zed/themes/pywal.json,
+// a symlink into wal's generated ~/.cache/wal/colors-zed.json (presets
+// and `wal -i` both rewrite it; Zed hot-reloads theme files). The
+// catppuccin extension stays installed as the fallback for a cold boot
+// before wal/presets ever ran.
 {
-  "theme": "Catppuccin Mocha",
+  "theme": "Pywal",
   "auto_install_extensions": {
     "catppuccin": true
   },

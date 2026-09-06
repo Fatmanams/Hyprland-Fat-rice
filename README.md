@@ -1,11 +1,47 @@
+<div align="center">
+
 # linux-rice
+
+**A reviewable Hyprland dotfiles + installer set for Arch Linux.**
+Single monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
+No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU-native
+
+[Components](#whats-in-this-rice) —
+[AUR audit](#aur-only-packages--full-up-front-audit-policy-rule-5) —
+[Install](#installation-steps) —
+[First-boot TODOs](#mandatory-first-boot-todos) —
+[Tree](#tree)
+
+</div>
+
+---
+
+## Contents
+
+- [What's in this rice](#whats-in-this-rice)
+- [AUR-only packages — full up-front audit](#aur-only-packages--full-up-front-audit-policy-rule-5)
+- [Themes (wallpaper mode + 4 presets)](#themes-wallpaper-mode--4-presets)
+- [GPU compatibility](#gpu-compatibility-nvidia--intel--amd-same-config)
+- [Step 0: installing Arch itself](#step-0-installing-arch-itself-archinstall-from-the-iso)
+- [Installation steps](#installation-steps)
+- [Mandatory first-boot TODOs](#mandatory-first-boot-todos)
+- [Rolling back if SDDM crashes](#rolling-back-if-sddm-crashes)
+- [Snapshots (btrfs / ext4)](#snapshots-btrfs---snapper-anything-else---timeshift-rsync)
+- [Code editor setup (Zed, Neovim, Ghostty)](#code-editor-setup-zed-neovim-ghostty)
+- [Gaming launch-option recipes](#steam--wine--proton-launch-option-recipes-gaming-set)
+- [Package policy](#package-policy-kept-reference-only-here-so-the-rules-are-visible)
+- [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
+- [Tree](#tree)
+- [License](#license)
+
+---
 
 A personal Hyprland rice for a single-monitor AMD/Intel Arch Linux box.
 Install is staged into reviewable scripts; AUR-only packages go through
 PKGBUILD review → plain `makepkg` → `repo-add` → install from local repo
-exactly. No AUR helpers (paru/yay), no `curl | bash` installers.
-
----
+exactly. AUR helpers (paru/yay) are permitted by policy but the reviewed
+pipeline is what the scripts use; `curl | bash` installers are banned,
+and everything the rice compiles builds CPU-native (`-march=native`).
 
 ## What's in this rice
 
@@ -25,8 +61,8 @@ exactly. No AUR helpers (paru/yay), no `curl | bash` installers.
 | Cursor theme     | bibata-cursor-theme  | **AUR — makepkg'd**     | Modern variant, 24px |
 | Logout menu      | wlogout              | **AUR — makepkg'd**     |       |
 | Terminal         | ghostty              | pacman (extra)          | primary; shell = fish (pacman) |
-| Code editor      | zed                  | **AUR — makepkg'd**     | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; ships `config/zed/settings.json` (Mocha theme + Nerd font) |
-| Quick editor     | neovim              | pacman (extra)          | terminal edits, pywal-driven, no plugins |
+| Code editor      | zed                  | **AUR — makepkg'd**     | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback) |
+| Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
 | HTML/CSS/JSON LSP | vscode-langservers-extracted | **AUR — makepkg'd** | the only LSP not in official repos |
@@ -48,6 +84,7 @@ exactly. No AUR helpers (paru/yay), no `curl | bash` installers.
 | Antivirus        | clamav               | pacman (extra)          | on-demand `clamscan`; clamav-freshclam.service (enabled by 00-base.sh) keeps the signature DB current |
 | MAC / shields    | apparmor             | pacman (extra)          | LSM mandatory access control; inert until the kernel cmdline opt-in — first-boot TODO #4 |
 | Per-app sandbox  | firejail             | pacman (extra)          | wrap a single app: `firejail <cmd>`; profiles in /etc/firejail |
+| Snapshots        | snapper / timeshift + cronie | pacman (extra)   | picked by root fs — btrfs gets snapper, anything else gets Timeshift RSYNC (`45-snapshots.sh`) |
 
 
 ---
@@ -80,7 +117,9 @@ repos** — these are installed by `scripts/00-base.sh`, **not** built:
 - `kvantum` and `kvantum-qt5` — in `extra`
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
-> The policy is "use AUR for whatever has no official-repo equivalent."
+> The policy is "use AUR for whatever has no official-repo equivalent"
+> (AUR helpers are tolerated but the scripts keep the reviewed pipeline),
+> and whatever we do build from AUR is compiled CPU-native.
 > When the AUR-only list you used to need folds into upstream Arch repos,
 > we stop building that thing from AUR and start using `pacman -S`.
 
@@ -94,11 +133,12 @@ wallpaper the rice uses one of four shipped static presets —
 **Catppuccin Mocha** (default), **Gruvbox Dark**, **Tokyo Night**,
 **Osaka Jade** (values ported from omarchy's upstream
 `themes/osaka-jade/colors.toml`) — all pre-generated in pywal's own
-file formats under `config/hypr/themes/`, so every themed component
-(waybar, swaync, rofi, eww, wlogout, nvim, emacs) picks them up
-unchanged. Each preset dir carries all five formats the rice consumes —
-`colors-waybar.css`, `colors-rofi.rasi`, `colors-wal.vim`, `colors.el`,
-`colors.sh`.
+file formats under `config/hypr/themes/`, so every themed component —
+waybar, swaync, rofi, eww, wlogout, nvim, emacs, ghostty, zed, and
+Hyprland's own window borders — picks them up unchanged. Each preset
+dir carries all seven formats the rice consumes: `colors-waybar.css`,
+`colors-rofi.rasi`, `colors-wal.vim`, `colors.el`, `colors.sh`,
+`colors-zed.json`, `colors-hyprland.conf`.
 
 Switching:
 
@@ -113,12 +153,16 @@ Notes:
 - The selected preset is recorded in `~/.cache/wal/current-theme` and
   reapplied at session start; presets never overwrite wallpaper mode —
   the moment `wallpaper.jpg` exists, `wal -i` takes over again.
-- Ghostty IS rethemed: `config/ghostty/ghostty-theme.sh` regenerates
-  `~/.config/ghostty/colors.conf` from the live palette in both modes
-  (after `wal -i` and after every preset switch), hot-reloading with
-  `ghostty +reload-config`. The baked Catppuccin Mocha block in
-  ghostty's config stays as the before-first-wal fallback. VLC isn't
-  themed by presets.
+- Ghostty follows both modes: `ghostty-theme.sh` converts the same
+  `colors.sh` into `~/.config/ghostty/colors.conf` and reloads running
+  windows (its baked Mocha palette is only the pre-wal fallback). Zed
+  follows too: every mode lands `colors-zed.json` in `~/.cache/wal/`,
+  which is symlinked to `~/.config/zed/themes/pywal.json` and
+  hot-reloaded as the "Pywal" theme. Window borders follow too —
+  `hyprland.conf` ends with `source = ~/.cache/wal/colors-hyprland.conf`,
+  so any palette change repaints them live. VLC isn't themed by
+  presets (by design), and GTK/Qt apps use nwg-look / kvantum profiles
+  which are manual picks, not wal-driven.
 
 ---
 
@@ -221,8 +265,11 @@ there to here. Everything in this section runs on the ISO, as root.
      cmdline notes are written against editing your Limine entry.
      systemd-boot/GRUB work too — translate those notes yourself if you
      pick them.
-   - **Partitioning: your call** (best-effort default on btrfs or ext4
-     is fine; nothing in the scripts cares).
+   - **Partitioning: btrfs or ext4, your call** — the rice is fine on
+     either. The one place the answer matters is `45-snapshots.sh`,
+     which picks snapshot tooling to match (btrfs -> snapper subvolume
+     snapshots; ext4 and anything else -> Timeshift in RSYNC mode).
+     See "Snapshots" further down.
    - **A regular user with sudo.** `00-base.sh` REFUSES to run as root.
    - Timezone/locale/keyboard: yours.
 4. Reboot into the installed system and log in as that user.
@@ -251,14 +298,16 @@ sign-off before building anything.
 chmod +x scripts/*.sh
 
 # 1. Official-repo install — also configures /etc/makepkg.conf with
-#    MAKEFLAGS=-j$(nproc) and ccache in BUILDENV, enables [multilib],
-#    runs xdg-user-dirs-update (so ~/Pictures etc. exist — VLC's
-#    default snapshot dir is the Pictures dir), enables
+#    MAKEFLAGS=-j$(nproc), ccache in BUILDENV, and CPU-native
+#    CFLAGS/CXXFLAGS/RUSTFLAGS for everything the rice compiles; enables
+#    [multilib], runs xdg-user-dirs-update (so ~/Pictures etc. exist —
+#    VLC's default snapshot dir is the Pictures dir), enables
 #    bluetooth.service, sets up the ufw firewall baseline
 #    (deny incoming / allow outgoing), and enables ClamAV's freshclam
 #    signature-updater (antivirus DB autoupdate). AppArmor is installed
 #    but requires a hand-edited Limine cmdline — see first-boot TODOs.
-#    Also installs the language-server stack (Zed + Emacs/eglot use it).
+#    Also installs the language-server stack (Zed finds them on $PATH,
+#    nvim wires them via its lspconfig block, Emacs uses eglot).
 #
 #    Two interactive prompts near the end: the CPU `performance`
 #    governor (cpupower — read the tradeoff comment in the script) and
@@ -285,10 +334,17 @@ chmod +x scripts/*.sh
 #    launch-option templates.
 ./scripts/40-gaming.sh
 
-# 6. Post-deploy health check — read-only, reports PASS/FAIL never
+# 6. Snapshots — picked by your root filesystem: btrfs gets snapper
+#    (hourly timeline + cleanup timers, trimmed retention), anything
+#    else gets Timeshift in RSYNC mode aimed at the root partition.
+#    Both official-repo. No first snapshot is taken for you — the
+#    starter command is printed at the end. Skippable.
+./scripts/45-snapshots.sh
+
+# 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
 #    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all five pywal formats. Best run
+#    disk, every theme preset carrying all seven pywal formats. Best run
 #    after one Hyprland session has booted.
 ./scripts/50-verify.sh
 ```
@@ -399,6 +455,44 @@ working GUI to investigate from.
 
 ---
 
+## Snapshots (btrfs -> snapper, anything else -> Timeshift RSYNC)
+
+`45-snapshots.sh` reads the filesystem of `/` with `findmnt` and sets
+up the matching tool — one place the btrfs-vs-ext4 question is
+answered:
+
+- **btrfs** — `snapper` (official extra). Snapshots are native
+  copy-on-write subvolume snapshots: instant, tiny, no separate backup
+  partition. The script creates the `root` config, trims retention to
+  **5 hourly + 7 daily** (weekly/monthly/yearly off), and enables
+  `snapper-timeline.timer` + `snapper-cleanup.timer`. If archinstall's
+  btrfs layout already mounted an empty `/.snapshots`, snapper refuses
+  to create a config over it — the script detects exactly that case
+  and offers the documented fix (unmount, delete the empty subvolume,
+  recreate, remount) behind a `[y/N]` prompt. Manual snapshot:
+  `sudo snapper -c root create -d "why"`.
+- **ext4 (or anything else)** — `timeshift` (official extra) in
+  **RSYNC mode**: file-level copies onto the root partition itself.
+  Snapper is structurally impossible here — there is no subvolume to
+  snapshot — and Timeshift's own BTRFS mode would be redundant on
+  btrfs, hence the split. The script configures mode and target
+  through Timeshift's own CLI (never a hand-written `default.json`),
+  and enables `cronie` (Arch's timeshift schedules via `/etc/cron.d`).
+
+Neither branch takes a first snapshot for you (nothing silent — a
+fresh RSYNC baseline is a full-tree copy). After the script:
+
+```bash
+sudo snapper -c root create -d "baseline"          # btrfs
+sudo timeshift --create --comments "baseline"      # ext4 / other
+```
+
+pacman-transaction hooks (`snap-pac` and friends) are AUR-only and
+deliberately not wired in — they'd go through `10-aur.sh`'s review
+pipeline if you ever want them.
+
+---
+
 ## Code editor setup (Zed, Neovim, Ghostty)
 
 Per your ask, **Zed** is the default editor for `python`, `c`, `c++`,
@@ -409,15 +503,26 @@ The handler also covers adjacent types (C headers, JavaScript, TOML,
 YAML, markdown, shell, plaintext).
 
 Zed also ships a rice config at `config/zed/settings.json` (lands at
-`~/.config/zed/` via the blanket copy): Catppuccin Mocha theme (the
-catppuccin extension auto-installs on first launch), JetBrainsMono
-Nerd Font buffers, autosave on focus change, format on save.
+`~/.config/zed/` via the blanket copy): theme "Pywal" — a theme file
+generated from wal's palette (template at
+`config/wal/templates/colors-zed.json`, rendered to
+`~/.cache/wal/colors-zed.json`, symlinked by `30-dotfiles.sh` to
+`~/.config/zed/themes/pywal.json` and hot-reloaded by Zed) — plus
+JetBrainsMono Nerd Font buffers, autosave on focus change, format on
+save. The catppuccin extension stays auto-installed purely as the
+cold-boot fallback for before wal first runs.
 
-**Neovim** is configured at `~/.config/nvim/init.lua` — single-file,
-no plugin manager, pywal-driven colors (matches the rest of the rice).
-Use it for terminal-side edits where you want syntax-aware highlighting
-without popping a GUI window: script hacks, dockerfile edits, quick
-patches. It's not your IDE — Zed is.
+**Neovim** is the terminal IDE, configured at `~/.config/nvim/init.lua` —
+still a single file, but plugin-powered since the plugin rule was
+relaxed: **lazy.nvim** specs inline (nvim-lspconfig, treesitter pinned
+to the stable `master` branch, nvim-cmp completion, telescope,
+nvim-tree). First launch clones lazy.nvim (stable branch) and installs
+the specs — needs network, once; versions resolve into the machine's
+own `lazy-lock.json`. Hard constraints documented in the file header:
+no colorscheme plugins (pywal stays the one source of color and plugin
+UIs link into the same highlight groups), no mason (LSP servers are
+compiled/packaged system installs from `00-base.sh` and `10-aur.sh`),
+and the rice's own UX stays:
 
 F2 toggles two editing personalities in nvim: **supermode** (the default —
 plain modal vim) and **fats mode** (nvim stays in Insert permanently;
@@ -457,12 +562,11 @@ If `~/.emacs.d` already exists on your box, Emacs ignores
 `~/.config/emacs/` entirely (XDG precedence rules) — move the old dir
 aside for this config to take effect.
 
-**Ghostty** is the primary terminal. It follows the live pywal palette
-through `~/.config/ghostty/colors.conf`, generated from
-`~/.cache/wal/colors.sh` by `~/.config/ghostty/ghostty-theme.sh`
-(hooked after `wal -i` and after `switch-theme.sh`; running windows
-reload via `ghostty +reload-config`). The Catppuccin Mocha block baked
-into its config is the fallback for boots before wal has ever run.
+**Ghostty** is the primary terminal. `~/.config/ghostty/config` bakes
+Catppuccin Mocha as the fallback palette; once wal (or a preset) runs,
+`ghostty-theme.sh`'s generated `colors.conf` include overrides it —
+Ghostty applies `config-file` includes *after* the primary file — and
+running windows pick the new palette up via `ghostty +reload-config`.
 
 Bindings:
 
@@ -545,8 +649,10 @@ CPU/GPU stats, RAM, VRAM, swap, histogram, and is toggleable with
 ## Package policy (kept reference-only here so the rules are visible)
 
 1. **Official repos first.** If it's in `pacman -S`, that's where it comes from.
-2. **No AUR helpers** (paru/yay). **No `curl | bash` installers** anywhere,
-   including upstream one-liner install scripts.
+2. **No `curl | bash` installers** anywhere, including upstream one-liner
+   install scripts. AUR helpers (paru/yay) are tolerated per user
+   policy, but the scripts keep the reviewed pipeline below — the
+   human-review step is the point.
 3. **AUR-only packages**: pull PKGBUILD, print it, **read it in full**
    (look for `curl | bash`, post_registration wget, suspicious source
    URLs), build with plain `makepkg` (no `-si`, build only), `repo-add`
@@ -562,6 +668,11 @@ CPU/GPU stats, RAM, VRAM, swap, histogram, and is toggleable with
 ### Build-speed tweaks (applied by `scripts/00-base.sh`)
 
 - `/etc/makepkg.conf`:`MAKEFLAGS="-j$(nproc)"`
+- `/etc/makepkg.conf`: `CFLAGS`/`CXXFLAGS` retargeted to
+  `-march=native`, plus `RUSTFLAGS="-C target-cpu=native"` — everything
+  the rice compiles (the AUR set) builds CPU-native. pacman's own
+  binaries stay upstream-generic x86-64; source-rebuilding all of Arch
+  would be a full source distro, which this rice is not.
 - `/etc/makepkg.conf`:`BUILDENV=(... ccache ...)` — `ccache` from
   official repos; pays for itself against the AUR build queue
 - Local repo at `/var/cache/pacman/localrepo` (`localrepo`,
@@ -670,13 +781,18 @@ was wrong and what the correct spec says. Summary of what was caught:
 ```
 linux-rice/
 ├── README.md                                this
+├── AGENTS.md                                the agent-facing contract (read it first when editing)
+├── LICENSE                                  MIT
 ├── .gitignore
+├── .gitattributes                           forces LF line endings
+├── .github/workflows/lint.yml               CI: bash -n, shellcheck, jq, emacs byte-compile, luajit parse, preset matrix
 ├── scripts/
 │   ├── 00-base.sh                          official-repo install + makepkg.conf
 │   ├── 10-aur.sh                           reviewed-PKGBUILD builds + repo-add
 │   ├── 20-sddm.sh                          bare git clone + rollback snapshot
 │   ├── 30-dotfiles.sh                      copies config/ into ~/.config (backup first)
 │   ├── 40-gaming.sh                        verifies gaming extras + templates
+│   ├── 45-snapshots.sh                     snapper on btrfs / timeshift-rsync elsewhere (picks by root fs)
 │   └── 50-verify.sh                        read-only post-deploy health check (PASS/FAIL, never fixes)
 └── config/
     ├── hypr/
@@ -685,10 +801,10 @@ linux-rice/
     │   ├── hypridle.conf                   idle / lock / suspend listeners
     │   ├── keybinds-extra.conf             empty by default; user-local bind additions
     │   ├── switch-theme.sh                 preset palette switcher (SUPER+SHIFT+T cycles)
-    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes
+    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (six formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)
     ├── nvim/
-    │   └── init.lua                         single-file nvim config; pywal-driven, no plugins
+    │   └── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER
     ├── emacs/
     │   └── init.el                          opt-in single-file Emacs config; eglot for LSP
     ├── waybar/
@@ -706,21 +822,27 @@ linux-rice/
     │   ├── layout                          6 fields: lock/logout/suspend/hibernate/reboot/shutdown
     │   └── style.css                       pywal16 @import colors
     ├── ghostty/
-    │   ├── config                          primary terminal; includes generated colors.conf
-    │   └── ghostty-theme.sh                regenerates colors.conf from pywal + reloads ghostty
+    │   ├── config                          primary terminal; baked Mocha = pre-wal fallback
+    │   └── ghostty-theme.sh                wal colors.sh -> ghostty colors.conf (+reload-config)
     ├── MangoHud/
     │   └── MangoHud.conf                   gaming HUD config
     ├── zed/
-    │   └── settings.json                   Mocha theme + Nerd font + autosave (~/.config/zed/)
-
+    │   └── settings.json                   theme "Pywal" (wal-generated) + Nerd font + autosave
     ├── vlc/
     │   ├── vlc-open                        URL -> resolve (yt-dlp/streamlink) -> play in VLC (SUPER+SHIFT+M)
     │   └── vlcrc                           minimal; defaults left alone (see file comments)
-    
     ├── wal/
     │   └── templates/
     │       ├── colors-rofi.rasi            custom pywal template -> ~/.cache/wal/colors-rofi.rasi
-    │       └── colors.el                   custom pywal template -> ~/.cache/wal/colors.el (emacs)
+    │       ├── colors.el                   custom pywal template -> ~/.cache/wal/colors.el (emacs)
+    │       ├── colors-zed.json             custom pywal template -> ~/.cache/wal/colors-zed.json (zed)
+    │       └── colors-hyprland.conf        custom pywal template -> ~/.cache/wal/colors-hyprland.conf (borders)
     └── applications/
         └── zed-handler.desktop             xdg-mime default for python/c/c++/lua/java/rust/json
 ```
+
+---
+
+## License
+
+MIT — © 2026 Ziad Ibrahim. See [`LICENSE`](LICENSE).
