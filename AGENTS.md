@@ -115,7 +115,9 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
 │   ├── 30-dotfiles.sh         installs config/ into ~/.config with backup
 │   ├── 40-gaming.sh           verifies gamemoded + prints Steam launch recipes
 │   ├── 45-snapshots.sh        root-fs pick: snapper on btrfs, timeshift--rsync otherwise
-│   └── 50-verify.sh           read-only post-deploy health check (never auto-fixes)
+│   └── 50-verify.sh           read-only post-deploy health check, 8 checks
+│                              (never auto-fixes); [8/8] mirrors 45-snapshots.sh's
+│                              btrfs/snapper vs other/Timeshift branch
 └── config/
     ├── hypr/
     │   ├── hyprland.conf       compositor config (monitor= is a STOPGAP TODO — see notes)
@@ -132,7 +134,9 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     │                           nvim-tree), pywal-driven colors, FATS/SUPER kept
     ├── emacs/
     │   └── init.el             OPT-IN single-file Emacs config; pywal-driven,
-    │                           no package manager, LSP via built-in eglot
+    │                           no package manager; eglot auto-starts via
+    │                           prog-mode-hook, core *-ts-mode remaps are
+    │                           guarded by treesit-ready-p, F2 = FATS/SUPER
     ├── waybar/{config,style.css}
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
@@ -144,7 +148,11 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     ├── MangoHud/MangoHud.conf
     ├── zed/settings.json      theme "Pywal" (wal-generated colors-zed.json,
     │                          symlinked by 30-dotfiles.sh into
-    │                          ~/.config/zed/themes/pywal.json) + Nerd font
+    │                          ~/.config/zed/themes/pywal.json) + Nerd font;
+    │                          vim_mode left unset (off) — F2 toggles it
+    ├── zed/keymap.json        F2 -> workspace::ToggleVimMode (native vim
+                               mode, no extension), matching nvim/Emacs's
+                               FATS/SUPER contract
     ├── vlc/vlc-open                 resolve-then-play URL wrapper (yt-dlp / streamlink -> VLC; SUPER+SHIFT+M)
     ├── vlc/vlcrc                    minimal; decoding + snapshot dir left on VLC's defaults
     ├── wal/templates/colors-rofi.rasi   custom pywal user template -> ~/.cache/wal/colors-rofi.rasi
@@ -332,10 +340,19 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
   `00-base.sh` / `10-aur.sh`, language servers are compiled/packaged,
   not mason's generic prebuilt binaries), and FATS/SUPER mode (F2) +
   the hand-rolled statusline stay.
-- **Emacs** — unchanged: no package manager, eglot from core.
+- **Emacs** — unchanged: no package manager, eglot from core. The
+  tree-sitter remaps in init.el use only Emacs-29-core `*-ts-mode`s and
+  are guarded by `treesit-ready-p` (language symbol, e.g. `cpp` for
+  `c++-ts-mode`) — never add `treesit-install-language-grammar` or any
+  other fetch-at-runtime; grammars are a system concern, same rule as
+  LSP servers. No core lua-ts-mode exists, so lua-mode stays unremapped.
 - **Zed** — extensions only as cold-boot theme fallback (catppuccin);
   the real palette is the wal-generated "Pywal" theme (palette contract
-  item 7). Don't start an extension stack.
+  item 7). Don't start an extension stack. Vim mode is native (no
+  extension): `settings.json` leaves `vim_mode` unset (default off) and
+  `keymap.json` binds F2 to `workspace::ToggleVimMode` — same F2
+  modal/plain toggle contract as nvim's FATS/SUPER and Emacs's
+  supermode/fats-mode.
 
 ---
 

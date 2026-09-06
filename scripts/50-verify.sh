@@ -23,7 +23,7 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 
 HYPR_CFG="$HOME/.config/hypr"
 
-echo "==> [1/7] First-boot TODOs cleared"
+echo "==> [1/8] First-boot TODOs cleared"
 # hyprland.conf / hyprpaper.conf ship with literal "@@ TODO @@"
 # placeholders (monitor name, wallpaper path) the user must replace
 # after first boot. Any leftover means the stopgap is still live.
@@ -35,7 +35,7 @@ else
     echo "$todo_hits" | sed 's/^/        /'
 fi
 
-echo "==> [2/7] GPU driver sanity"
+echo "==> [2/8] GPU driver sanity"
 # Same lspci detection 00-base.sh uses at install time, INCLUDING the
 # head -n1 (first VGA controller only) — so on hybrid/Optimus systems
 # verify and install always agree on which controller counts.
@@ -66,7 +66,7 @@ else
     fi
 fi
 
-echo "==> [3/7] ufw firewall"
+echo "==> [3/8] ufw firewall"
 # Both halves matter: the unit can be "active" while ufw itself was
 # never enabled, and vice versa.
 if systemctl is-active --quiet ufw.service && ufw status 2>/dev/null | grep -q "Status: active"; then
@@ -75,21 +75,21 @@ else
     fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw status: $(ufw status 2>/dev/null | head -n1 || echo 'unreadable'))"
 fi
 
-echo "==> [4/7] clamav-freshclam"
+echo "==> [4/8] clamav-freshclam"
 if systemctl is-active --quiet clamav-freshclam.service; then
     pass "clamav-freshclam.service active"
 else
     fail "clamav-freshclam.service not active (state: $(systemctl is-active clamav-freshclam.service 2>&1))"
 fi
 
-echo "==> [5/7] bluetooth"
+echo "==> [5/8] bluetooth"
 if systemctl is-active --quiet bluetooth.service; then
     pass "bluetooth.service active"
 else
     fail "bluetooth.service not active (state: $(systemctl is-active bluetooth.service 2>&1))"
 fi
 
-echo "==> [6/7] SDDM rollback snapshot exists"
+echo "==> [6/8] SDDM rollback snapshot exists"
 # 20-sddm.sh snapshots /etc/sddm.conf.d + /usr/share/sddm/themes into
 # /root/sddm-snap.<TS>/ before touching anything. /root is unreadable
 # to a normal user, so without sudo we can only say "cannot check"
@@ -104,15 +104,17 @@ else
     echo "    SKIP: cannot check /root without root — run with sudo to verify (not counted as FAIL)"
 fi
 
-echo "==> [7/7] Theme preset integrity (repo checkout)"
+echo "==> [7/8] Theme preset integrity (repo checkout)"
 # Same logic as .github/workflows/lint.yml's "theme presets carry every
-# pywal format" step: each preset dir must ship all five formats, and
+# pywal format" step: each preset dir must ship all seven formats, and
 # switch-theme.sh must reference each one — a format missing from
 # either place leaves that consumer on a stale palette after a switch.
-# This one intentionally runs against the repo checkout, not ~/, so it
-# can catch a bad commit before it ever reaches the installed system.
+# Keep this FORMATS list identical to lint.yml's (last updated to match:
+# 7 entries). This one intentionally runs against the repo checkout, not
+# ~/, so it can catch a bad commit before it ever reaches the installed
+# system.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh)
+FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf)
 theme_ok=1
 for d in "$REPO_ROOT"/config/hypr/themes/*/; do
     for f in "${FORMATS[@]}"; do
@@ -129,9 +131,32 @@ for f in "${FORMATS[@]}"; do
     fi
 done
 if [[ $theme_ok -eq 1 ]]; then
-    pass "all presets carry all 5 pywal formats and switch-theme.sh lists them"
+    pass "all presets carry all 7 pywal formats and switch-theme.sh lists them"
 else
     fail "theme preset integrity broken (see MISSING lines above)"
+fi
+
+echo "==> [8/8] Snapshot tooling live"
+# Mirrors 45-snapshots.sh's root-filesystem branch: btrfs got snapper
+# (timeline + cleanup timers), anything else got Timeshift, which
+# schedules through /etc/cron.d and therefore needs cronie running.
+# Same findmnt call as 45-snapshots.sh so verify always agrees with
+# install about which path was taken.
+ROOT_FS=$(findmnt -n -o FSTYPE /)
+if [[ "$ROOT_FS" == "btrfs" ]]; then
+    for unit in snapper-timeline.timer snapper-cleanup.timer; do
+        if systemctl is-active --quiet "$unit"; then
+            pass "$unit active (btrfs root — snapper path)"
+        else
+            fail "$unit not active (state: $(systemctl is-active "$unit" 2>&1)) — btrfs root: 45-snapshots.sh took the snapper path"
+        fi
+    done
+else
+    if systemctl is-active --quiet cronie.service; then
+        pass "cronie.service active ($ROOT_FS root — Timeshift path)"
+    else
+        fail "cronie.service not active (state: $(systemctl is-active cronie.service 2>&1)) — $ROOT_FS root: 45-snapshots.sh took the Timeshift path"
+    fi
 fi
 
 echo

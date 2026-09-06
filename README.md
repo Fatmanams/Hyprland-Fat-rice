@@ -344,8 +344,10 @@ chmod +x scripts/*.sh
 # 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
 #    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all seven pywal formats. Best run
-#    after one Hyprland session has booted.
+#    disk, every theme preset carrying all seven pywal formats, and the
+#    snapshot tooling live (snapper timers on btrfs, cronie otherwise —
+#    same branch 45-snapshots.sh took). Best run after one Hyprland
+#    session has booted.
 ./scripts/50-verify.sh
 ```
 
@@ -512,6 +514,13 @@ JetBrainsMono Nerd Font buffers, autosave on focus change, format on
 save. The catppuccin extension stays auto-installed purely as the
 cold-boot fallback for before wal first runs.
 
+F2 gets the same modal-toggle contract nvim and Emacs have:
+`config/zed/keymap.json` binds `f2` to `workspace::ToggleVimMode`,
+Zed's native (no-extension) vim mode. `settings.json` leaves `vim_mode`
+unset, so Zed opens in plain editing and F2 flips modal editing on —
+F2 again turns it off. Same default-plain, F2-is-the-alternative
+arrangement as nvim's FATS/SUPER and Emacs's supermode/fats-mode.
+
 **Neovim** is the terminal IDE, configured at `~/.config/nvim/init.lua` —
 still a single file, but plugin-powered since the plugin rule was
 relaxed: **lazy.nvim** specs inline (nvim-lspconfig, treesitter pinned
@@ -538,10 +547,18 @@ same reasoning as `QT_QPA_PLATFORM=wayland` for Qt apps). The config at
 package manager, no third-party packages, pywal-driven colors (from
 `~/.cache/wal/colors.el`) with a Catppuccin Mocha fallback.
 
-For LSP, use the built-in **eglot** (`M-x eglot` in a project buffer) —
-it's part of Emacs core since 29, so nothing extra to install. The
-servers themselves come from `00-base.sh` (pyright, rust-analyzer,
-clangd, lua-language-server, bash-language-server, gopls,
+For LSP, the built-in **eglot** auto-starts — `init.el` hooks it onto
+`prog-mode` via `eglot-ensure` (it's part of Emacs core since 29, so
+nothing extra to install; `M-x eglot` still works manually). The core
+tree-sitter major modes (`c-ts-mode`, `c++-ts-mode`, `java-ts-mode`,
+`python-ts-mode`, `rust-ts-mode`, `json-ts-mode`) replace the plain
+modes automatically whenever the language's grammar is installed —
+guarded by `treesit-ready-p`, and grammars are never auto-downloaded
+from inside Emacs (lua stays on plain `lua-mode`: there is no core
+`lua-ts-mode`). Completion is eglot's own backend riding the built-in
+`completion-at-point` — bound to `C-c C-i` (the `C-M-i` default also
+still works). The servers themselves come from `00-base.sh` (pyright,
+rust-analyzer, clangd, lua-language-server, bash-language-server, gopls,
 typescript-language-server) plus `10-aur.sh` for the HTML/CSS/JSON/ESLint
 set. Those same binaries are what Zed picks up off `$PATH`.
 

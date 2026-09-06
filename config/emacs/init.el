@@ -10,10 +10,15 @@
 ;; it, and installs emacs-wayland — the PGTK/native-Wayland build) —
 ;; Zed and nvim remain the default editors.
 ;;
-;; LSP: use the built-in eglot (`M-x eglot` in a project buffer). It's
-;; part of Emacs core since 29, so no package manager is needed here —
-;; the servers themselves (pyright, clangd, rust-analyzer, gopls, ...)
-;; are installed by 00-base.sh's [4/8] block.
+;; IDE: eglot (core since 29 — nothing to install) AUTO-STARTS via
+;; prog-mode-hook below; `M-x eglot` remains the manual path. The core
+;; tree-sitter major modes (c/c++/java/python/rust/json) replace the
+;; plain modes whenever the language's grammar is installed — guarded by
+;; treesit-ready-p, and grammars are never auto-downloaded here. eglot's
+;; completions ride the built-in completion-at-point (C-M-i by default,
+;; also bound to C-c C-i below). The language servers themselves
+;; (pyright, clangd, rust-analyzer, gopls, ...) are installed by
+;; 00-base.sh's [4/8] block.
 ;;
 ;; NOTE: Emacs reads this file from ~/.config/emacs/init.el only if
 ;; ~/.emacs.d does not exist (XDG rules). If you have an old ~/.emacs.d,
@@ -116,6 +121,40 @@
 (global-set-key (kbd "C-c e") #'dired-jump)           ; nvim <leader>e
 (global-set-key (kbd "C-c b") #'switch-to-buffer)     ; buffer switch
 (global-set-key (kbd "C-c n") #'display-line-numbers-mode) ; toggle numbers
+
+;; ---- IDE: eglot auto-start, tree-sitter remaps, completion -------------------
+;; eglot-ensure quietly does nothing in buffers whose mode has no
+;; registered server (eglot--guess-contact returns nil), so hooking all
+;; of prog-mode is safe; the servers come from 00-base.sh / 10-aur.sh.
+(add-hook 'prog-mode-hook #'eglot-ensure)
+
+;; Prefer the Emacs-29-core tree-sitter major modes, but only when the
+;; language's grammar is actually installed — 29 has no automatic
+;; fallback (python-ts-mode errors outright without its grammar).
+;; treesit-ready-p takes the LANGUAGE symbol (cpp for c++-ts-mode, etc.),
+;; not the mode name; with quiet=t it just returns nil when the grammar
+;; or tree-sitter itself is missing, leaving the plain mode active.
+;; Lua is deliberately absent: no core lua-ts-mode exists (Emacs 30's
+;; lua-mode is a plain non-treesitter mode), so there's nothing to remap.
+;; Grammar INSTALLS stay manual too — treesit-install-language-grammar
+;; would be an unreviewed network fetch, same objection as an unpinned
+;; plugin clone.
+(when (require 'treesit nil t)
+  (dolist (spec '((c-mode      c-ts-mode      c)
+                  (c++-mode    c++-ts-mode    cpp)
+                  (java-mode   java-ts-mode   java)
+                  (python-mode python-ts-mode python)
+                  (rust-mode   rust-ts-mode   rust)
+                  (json-mode   json-ts-mode   json)))
+    (when (treesit-ready-p (nth 2 spec) t)
+      (add-to-list 'major-mode-remap-alist (cons (car spec) (nth 1 spec))))))
+
+;; eglot registers its completion-at-point-functions backend
+;; automatically when it attaches — the only thing to add is a reachable
+;; key. The default C-M-i is awkward on many keyboards/terminals; C-c C-i
+;; (= C-c TAB) is free in this file's C-c set (w/q/e/b/n) and unbound by
+;; default. C-M-i itself is left in place.
+(global-set-key (kbd "C-c C-i") #'completion-at-point)
 
 ;; ---- fats-mode / supermode (F2 toggles) --------------------------------------
 ;; Same F2 contract as config/nvim/init.lua:
