@@ -16,10 +16,12 @@ Scripts run on Arch; do not assume Windows tools exist on the target.
 1. **Official repos first.** If a package is in `pacman -S` (any repo:
    core, extra, multilib), it comes from there. No building from source
    when an official package exists.
-2. **No AUR helpers** (`paru`, `yay`, etc.). **No `curl | bash`
-   installers**, ever — including upstream one-liner install scripts
-   (`curl -f https://zed.dev/install.sh | sh` is forbidden; use the
-   AUR pkg instead).
+2. **No `curl | bash` installers**, ever — including upstream one-liner
+   install scripts (`curl -f https://zed.dev/install.sh | sh` is
+   forbidden; use the AUR pkg instead). AUR helpers (`paru`, `yay`) are
+   permitted per user direction, but the reviewed manual pipeline in
+   rule 3 stays the default in scripts: the review step is the point,
+   and a helper skips it.
 3. **AUR-only packages** go through `scripts/10-aur.sh`:
    - `git clone https://aur.archlinux.org/<pkg>.git`
    - print the full PKGBUILD with line numbers for human review
@@ -78,6 +80,13 @@ Do not add to `10-aur.sh` — they are already in `00-base.sh`:
 ## Build speed settings (already applied by `00-base.sh`)
 
 - `/etc/makepkg.conf`: `MAKEFLAGS="-j$(nproc)"`
+- `/etc/makepkg.conf`: `CFLAGS`/`CXXFLAGS` retargeted to `-march=native`
+  and `RUSTFLAGS="-C target-cpu=native"` — the AUR set (10-aur.sh) is
+  everything this rice ever compiles from source, so that's where
+  "prefer compiled-and-native" is realized. pacman-installed binaries
+  are upstream-prebuilt generic x86-64 and stay that way (don't start
+  rebuilding official packages; that's a full source-distro, not a
+  rice).
 - `/etc/makepkg.conf`: `BUILDENV=(!distcc !color !ccache check !sign)` —
   `ccache` installed from pacman and wired into BUILDENV
 - Local repo at `/var/cache/pacman/localrepo`, name `localrepo`,
@@ -105,6 +114,7 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
 │   ├── 20-sddm.sh             sddm-astronaut-theme bare clone + rollback snapshot
 │   ├── 30-dotfiles.sh         installs config/ into ~/.config with backup
 │   ├── 40-gaming.sh           verifies gamemoded + prints Steam launch recipes
+│   ├── 45-snapshots.sh        root-fs pick: snapper on btrfs, timeshift--rsync otherwise
 │   └── 50-verify.sh           read-only post-deploy health check (never auto-fixes)
 └── config/
     ├── hypr/
@@ -117,7 +127,9 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     │   │                         wal.vim, colors.el, colors.sh)
     │   └── gpu-env.sh          NVIDIA/Intel/AMD auto-detect env shim (source from shell rc)
     ├── nvim/
-    │   └── init.lua            single-file nvim config; pywal-driven, no plugins
+    │   └── init.lua            single-file nvim IDE config; lazy.nvim plugin
+    │                           specs inline (lspconfig/treesitter/cmp/telescope/
+    │                           nvim-tree), pywal-driven colors, FATS/SUPER kept
     ├── emacs/
     │   └── init.el             OPT-IN single-file Emacs config; pywal-driven,
     │                           no package manager, LSP via built-in eglot
@@ -126,14 +138,19 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}
     ├── wlogout/{layout,style.css}
-    ├── ghostty/config            terminal config; includes generated colors.conf
-    ├── ghostty/ghostty-theme.sh  colors.conf writer: wal/preset hook + ghostty reload
+    ├── ghostty/
+    │   ├── config               primary terminal; baked Mocha = pre-wal fallback
+    │   └── ghostty-theme.sh     wal colors.sh -> colors.conf include generator
     ├── MangoHud/MangoHud.conf
-    ├── zed/settings.json       Mocha theme + Nerd font + autosave -> ~/.config/zed/
+    ├── zed/settings.json      theme "Pywal" (wal-generated colors-zed.json,
+    │                          symlinked by 30-dotfiles.sh into
+    │                          ~/.config/zed/themes/pywal.json) + Nerd font
     ├── vlc/vlc-open                 resolve-then-play URL wrapper (yt-dlp / streamlink -> VLC; SUPER+SHIFT+M)
     ├── vlc/vlcrc                    minimal; decoding + snapshot dir left on VLC's defaults
     ├── wal/templates/colors-rofi.rasi   custom pywal user template -> ~/.cache/wal/colors-rofi.rasi
     ├── wal/templates/colors.el          custom pywal user template -> ~/.cache/wal/colors.el (emacs)
+    ├── wal/templates/colors-zed.json    custom pywal user template -> ~/.cache/wal/colors-zed.json (zed)
+    ├── wal/templates/colors-hyprland.conf   wal template -> ~/.cache/wal/colors-hyprland.conf (compositor borders)
     └── applications/
         └── zed-handler.desktop  registered via xdg-mime default in hyprland.conf
 ```
@@ -179,13 +196,11 @@ interactively — do not store tokens or accept PASTED tokens in chat.
 There is no test suite. What verifying exists (also enforced on push/PR
 by `.github/workflows/lint.yml`):
 
-1. **Bash syntax check** on every script edit:
+1. **Bash syntax check** on every script edit (mirrors lint.yml's list,
+   including the non-scripts .sh files it names explicitly):
    ```
-   bash -n scripts/00-base.sh
-   bash -n scripts/10-aur.sh
-   bash -n scripts/20-sddm.sh
-   bash -n scripts/30-dotfiles.sh
-   bash -n scripts/40-gaming.sh
+   bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
+       config/vlc/vlc-open config/ghostty/ghostty-theme.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -216,6 +231,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
+| Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |
 | Edit gaming HUD defaults                      | `config/MangoHud/MangoHud.conf`                              |
 | Change notification behavior                  | `config/swaync/config.json` + `config/swaync/style.css`      |
 | Change status bar layout                      | `config/waybar/config` + `config/waybar/style.css`           |
@@ -245,26 +261,45 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    (raw `@colorN` scheme matching this rice's design). The stock
    `colors-rofi-dark.rasi` was deliberately NOT used — its semantic names
    don't match. `config/wal/templates/` MUST stay covered by
-   `30-dotfiles.sh`'s blanket `config/` install step so the template
-   reaches `~/.config/wal/templates/` where `wal` reads it.
+   `30-dotfiles.sh`'s blanket `config/` install step so the templates
+   reach `~/.config/wal/templates/` where `wal` reads them — this covers
+   `colors-zed.json` (item 7's Zed theme) the same way.
 5. Neovim sources `~/.cache/wal/colors-wal.vim` at editor open (falls back
-   to a baked Catppuccin Mocha palette if pywal hasn't run yet). Emacs
+   to a baked Catppuccin Mocha palette if pywal hasn't run yet) and its
+   plugin UIs (cmp/telescope/nvim-tree) link into those same highlight
+   groups — no colorscheme plugins, per the editor plugin rule below.
+   Emacs
    (opt-in) does the same with `~/.cache/wal/colors.el`, generated from
    the custom template at `config/wal/templates/colors.el` — same
    fallback, same `config/wal/templates/` install requirement as item 4.
-6. Ghostty can't `@import` CSS — `config/ghostty/ghostty-theme.sh`
-   bridges it: it reads `~/.cache/wal/colors.sh` and writes Ghostty-
-   native `~/.config/ghostty/colors.conf` (background/foreground/
-   palette 0-15 only, `#`-less hex — both forms are valid per the
-   Ghostty config reference). It's included from `config/ghostty/config`
-   via `config-file = ?colors.conf` (`?` suppresses the missing-file
-   error; included files apply AFTER the parent file, so the generated
-   palette wins). The hook fires after `wal -i` in hyprland.conf's
-   exec-once and after the preset copy in switch-theme.sh, then
-   `ghostty +reload-config` iff ghostty is running. The baked Mocha
-   block (incl. selection-*/cursor-color) is the pre-wal fallback —
-   don't delete it.
-7. Preset themes (used when no wallpaper is set): `config/hypr/themes/`
+6. Ghostty doesn't `@import` CSS, so the palette reaches it through a
+   generated include: `config/ghostty/ghostty-theme.sh` turns
+   `~/.cache/wal/colors.sh` into `~/.config/ghostty/colors.conf`
+   (background/foreground/palette 0..15, hex without `#`) and runs
+   `ghostty +reload-config` when an instance is up (skipped quietly
+   otherwise). It's called from `hyprland.conf`'s exec-once right after
+   `wal -i`, and from `switch-theme.sh` right after a preset copy.
+   Ghostty loads `config-file` includes AFTER the primary config, so
+   colors.conf overrides the Catppuccin Mocha palette baked into
+   `config/ghostty/config` — keep those baked lines, they're the
+   fallback until wal's first run. colors.conf must only set keys the
+   main config already carries for palette purposes; don't add keys
+   like `background-opacity` to it.
+7. Zed reads a generated theme: wal renders the user template
+   `config/wal/templates/colors-zed.json` into `~/.cache/wal/colors-zed.json`;
+   `30-dotfiles.sh` symlinks that path to `~/.config/zed/themes/pywal.json`
+   and `config/zed/settings.json` selects theme "Pywal". Zed hot-reloads
+   theme files on change, so no reload hook is needed. The catppuccin
+   extension stays auto-installed as the cold-boot fallback for before
+   wal's first run.
+8. Hyprland's own borders: `hyprland.conf` ends with
+   `source = ~/.cache/wal/colors-hyprland.conf` (wal renders it from the
+   `config/wal/templates/colors-hyprland.conf` template; presets carry a
+   rendered copy). Later assignment wins over the baked `rgb()` values in
+   `general {}`, and Hyprland auto-reloads sourced files, so any palette
+   change repaints borders live. `30-dotfiles.sh` pre-seeds the file via
+   the mocha preset so the source line always resolves on first boot.
+9. Preset themes (used when no wallpaper is set): `config/hypr/themes/`
    ships `mocha` / `gruvbox` / `tokyonight` / `osaka-jade` (values ported
    from omarchy upstream) as pre-generated copies of
    pywal's own output files; `config/hypr/switch-theme.sh` (SUPER+SHIFT+T
@@ -272,14 +307,35 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    `~/.cache/wal/current-theme`. Rules: presets are applied ONLY via the
    switcher; `wal -i` still wins whenever `wallpaper.jpg` exists; never
    hand-edit files inside `~/.cache/wal/` (they're regenerated); when
-   adding a preset, keep all five file formats (colors-waybar.css,
-   colors-rofi.rasi, colors-wal.vim, colors.el, colors.sh) in sync AND
+   adding a preset, keep all seven file formats (colors-waybar.css,
+   colors-rofi.rasi, colors-wal.vim, colors.el, colors.sh,
+   colors-zed.json, colors-hyprland.conf) in sync AND
    listed in `switch-theme.sh`'s `cp -f` — a format missing from either
-   place leaves that consumer on a stale palette after a switch; Ghostty
-   follows presets too (item 6's hook); only VLC stays unthemed.
+   place leaves that consumer on a stale palette after a switch; VLC
+   stays unthemed by design — every other in-session component follows
+   the palette (ghostty item 6, zed item 7, hyprland borders item 8).
 
 When adding a new themed component, follow the CSS `@import` pattern.
 Don't hardcode hex colors that should match the dynamic palette.
+
+---
+
+## Editor plugin rule (replaces the old "no plugins" stance)
+
+The previous blanket "no plugins anywhere" is lifted for nvim only:
+
+- **nvim** — plugins are allowed via **lazy.nvim**, specs inline in the
+  single `config/nvim/init.lua` (do not split into a lua/ tree). Hard
+  constraints, enforced by code review: **no colorscheme plugins**
+  (pywal owns color — plugin UIs link into the wal-driven highlight
+  groups), **no mason** (LSP servers are system packages from
+  `00-base.sh` / `10-aur.sh`, language servers are compiled/packaged,
+  not mason's generic prebuilt binaries), and FATS/SUPER mode (F2) +
+  the hand-rolled statusline stay.
+- **Emacs** — unchanged: no package manager, eglot from core.
+- **Zed** — extensions only as cold-boot theme fallback (catppuccin);
+  the real palette is the wal-generated "Pywal" theme (palette contract
+  item 7). Don't start an extension stack.
 
 ---
 

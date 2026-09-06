@@ -8,10 +8,9 @@
 #   3. Installs the official-repo portion of the rice from pacman.
 #   4. Installs the shared language-server stack. These are plain
 #      binaries on $PATH, NOT editor plugins: Zed discovers them itself,
-#      and Emacs drives them via eglot (in Emacs core since 29 — no
-#      package manager needed, which is why config/emacs/init.el can
-#      stay third-party-free). config/nvim/init.lua deliberately does
-#      NOT wire LSP today; the servers cost it nothing by being there.
+#      Emacs drives them via eglot (in Emacs core since 29 — no
+#      package manager needed), and nvim wires them through the
+#      nvim-lspconfig plugin block in config/nvim/init.lua.
 #      The HTML/CSS/JSON/ESLint servers are AUR-only
 #      (vscode-langservers-extracted) and are built by 10-aur.sh.
 #   5. Post-install setup: xdg user dirs, bluetooth.service, ufw baseline,
@@ -41,7 +40,7 @@ else
 fi
 sudo pacman -Syu --noconfirm
 
-echo "==> [2/8] Configuring /etc/makepkg.conf for parallelism + ccache"
+echo "==> [2/8] Configuring /etc/makepkg.conf for parallelism + ccache + native tuning"
 MAKEPKG=/etc/makepkg.conf
 if ! grep -q '^MAKEFLAGS="-j' "$MAKEPKG"; then
     sudo sed -i "s|^#MAKEFLAGS=\"-j2\"|MAKEFLAGS=\"-j$(nproc)\"|" "$MAKEPKG"
@@ -57,6 +56,22 @@ if ! grep -q '!ccache' "$MAKEPKG"; then
     echo "    ccache enabled in BUILDENV"
 else
     echo "    ccache already in BUILDENV"
+fi
+
+# Everything the rice actually compiles (the AUR set in 10-aur.sh) gets
+# CPU-native flags — prefer compiled-and-native for what's built anyway.
+# pacman binaries stay upstream generic x86-64 (rebuilding those would
+# be a source distro, not a rice). -march=native implies -mtune=native;
+# O2 stays (O3 here is all cost, no measurable win).
+if ! grep -q -- '-march=native' "$MAKEPKG"; then
+    sudo sed -i -E 's|^((C|CXX)FLAGS=")-march=x86-64 -mtune=generic|\1-march=native|' "$MAKEPKG"
+    echo "    CFLAGS/CXXFLAGS retargeted to -march=native (AUR builds)"
+fi
+if ! grep -q '^RUSTFLAGS=' "$MAKEPKG"; then
+    # Stock makepkg.conf only ships a commented #RUSTFLAGS= line;
+    # makepkg sources the file, so a trailing assignment wins.
+    echo 'RUSTFLAGS="-C target-cpu=native"' | sudo tee -a "$MAKEPKG" >/dev/null
+    echo "    RUSTFLAGS set to -C target-cpu=native (AUR builds)"
 fi
 
 echo "==> [3/8] Installing rice packages from official repos"
@@ -108,10 +123,10 @@ echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"
 #   * Emacs — via eglot, which is part of Emacs core since 29 (`M-x eglot`
 #            in a project buffer). That's what keeps config/emacs/init.el
 #            free of any package manager, matching init.lua's philosophy.
-#   * nvim  — config/nvim/init.lua does NOT configure LSP at all today
-#            (it's the "nice editor with pywal colors", Zed is the IDE —
-#            see that file's header). Nothing here breaks it; the servers
-#            simply sit unused until someone wires vim.lsp.enable().
+#   * nvim  — wired into these servers by nvim-lspconfig (lazy.nvim
+#     plugin block in init.lua, added when the editor plugin rule was
+#     lifted). If a server binary is missing, that filetype just edits
+#     without LSP — nothing crashes.
 #
 # Installed as a separate transaction from the main rice list so a failure
 # here is obviously an editor-tooling failure, not a desktop one.
