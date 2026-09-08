@@ -533,11 +533,11 @@ UIs link into the same highlight groups), no mason (LSP servers are
 compiled/packaged system installs from `00-base.sh` and `10-aur.sh`),
 and the rice's own UX stays:
 
-F2 toggles two editing personalities in nvim: **supermode** (the default —
-plain modal vim) and **fats mode** (nvim stays in Insert permanently;
-`Ctrl-O` is one-shot Normal, `Ctrl-S` saves, `Ctrl-Z` undoes, and
-Ctrl-C/Ctrl-V work via the system clipboard). The active mode shows in
-the statusline as `FATS`/`SUPER`.
+F2 toggles two editing personalities in nvim: **fats mode** (the default —
+nvim stays in Insert permanently; `Ctrl-O` is one-shot Normal, `Ctrl-S`
+saves, `Ctrl-Z` undoes, and Ctrl-C/Ctrl-V work via the system clipboard)
+and **supermode** (plain modal vim). The active mode shows in the
+statusline as `FATS`/`SUPER`.
 
 **Emacs** is **opt-in** — `00-base.sh`'s last step prompts for it and
 defaults to no. If you accept, it installs `emacs-wayland` (the PGTK
@@ -569,11 +569,11 @@ SPC-leader scheme, which would shadow self-insert here):
 buffer, `C-c n` toggle line numbers.
 
 F2 mirrors nvim's modes with two hand-rolled minor modes (no packages,
-same as the rest of this file): **supermode** (the startup default — a
-minimal vim-ish motion layer: `h/j/k/l`, `w`/`b` word motion, `i` drops
-into a self-inserting phase, `<escape>`/`C-g` back to motion) and
-**fats-mode** (stock Emacs feel with `C-s` save, `C-z` undo, `C-a`
-select-all). The mode line shows `SUPER` / `super/insert` / `FATS`.
+same as the rest of this file): **fats-mode** (the startup default —
+stock Emacs feel with `C-s` save, `C-z` undo, `C-a` select-all) and
+**supermode** (a minimal vim-ish motion layer: `h/j/k/l`, `w`/`b` word
+motion, `i` drops into a self-inserting phase, `<escape>`/`C-g` back to
+motion). The mode line shows `SUPER` / `super/insert` / `FATS`.
 
 If `~/.emacs.d` already exists on your box, Emacs ignores
 `~/.config/emacs/` entirely (XDG precedence rules) — move the old dir

@@ -255,8 +255,8 @@ map("<S-h>", ":bprev<CR>", "previous buffer")
 map("<S-l>", ":bnext<CR>", "next buffer")
 
 -- ---- fats mode <-> supermode (F2) ------------------------------------------
--- supermode is this file's DEFAULT: plain vim modal editing — nothing to
--- build.
+-- fats mode is this file's DEFAULT (Zed also starts with vim mode off):
+-- supermode — plain vim modal editing — is what F2 switches you into.
 -- fats mode is for people who hate modes: nvim stays in Insert
 -- "permanently" — Esc stops leaving it (mapped to a no-op) and every
 -- buffer re-enters Insert when you land on it. Ctrl-O still runs one
@@ -292,6 +292,11 @@ _G.rice_toggle_fats = function()
   end
 end
 map("<F2>",  _G.rice_toggle_fats, "toggle fats/supermode", { "n", "i" })
+-- Start in fats mode: call the toggle itself rather than only setting
+-- _G.rice_fats_mode = true — the Esc-noop map and the startinsert autocmd
+-- only exist after this function has run, so flipping the bare flag would
+-- give the FATS label with supermode behavior.
+_G.rice_toggle_fats()
 map("<C-s>", "<C-o>:write<CR>", "save (fats mode; harmless in normal Insert)", "i")
 map("<C-z>", "<C-o>u", "undo from Insert (fats mode)", "i")
 
