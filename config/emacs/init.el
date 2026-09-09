@@ -126,13 +126,13 @@
 ;; eglot-ensure quietly does nothing in buffers whose mode has no
 ;; registered server (eglot--guess-contact returns nil), so hooking all
 ;; of prog-mode is safe; the servers come from 00-base.sh / 10-aur.sh.
-;; Emacs 29's built-in eglot-server-programs already covers clangd and
-;; the JSON server but has NO python or rust entry (verified against a
-;; live Emacs 29.3) — without these two entries the hook would silently
-;; no-op in exactly those buffers. Binary names verified against the
-;; Arch package file lists: extra/pyright ships usr/bin/pyright-langserver.
-;; (java-mode is intentionally NOT listed: jdtls isn't installed by
-;; 00-base.sh — that's a separate decision.)
+;; Emacs 29 already probes for several python/rust servers in order
+;; (python: pylsp/pyls/pyright-langserver/jedi-language-server/ruff-lsp;
+;; rust: a similar chain). These entries make pyright/rust-analyzer the
+;; explicit first choice instead of relying on that probe order — they
+;; are the only ones 00-base.sh actually installs. (java-mode is
+;; intentionally NOT listed: jdtls isn't installed either — separate
+;; decision.)
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
                '((python-mode python-ts-mode) "pyright-langserver" "--stdio"))
