@@ -129,9 +129,11 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     │   │                         wal.vim, colors.el, colors.sh)
     │   └── gpu-env.sh          NVIDIA/Intel/AMD auto-detect env shim (source from shell rc)
     ├── nvim/
-    │   └── init.lua            single-file nvim IDE config; lazy.nvim plugin
-    │                           specs inline (lspconfig/treesitter/cmp/telescope/
-    │                           nvim-tree), pywal-driven colors, FATS/SUPER kept
+    │   ├── init.lua            single-file nvim IDE config; lazy.nvim plugin
+    │   │                       specs inline (lspconfig/treesitter/cmp/telescope/
+    │   │                       nvim-tree), pywal-driven colors, FATS/SUPER kept
+    │   └── lazy-lock.json      pinned plugin commits (lazy.nvim-generated,
+    │                           committed; see editor plugin rule)
     ├── emacs/
     │   └── init.el             OPT-IN single-file Emacs config; pywal-driven,
     │                           no package manager; eglot auto-starts via
@@ -339,7 +341,15 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
   groups), **no mason** (LSP servers are system packages from
   `00-base.sh` / `10-aur.sh`, language servers are compiled/packaged,
   not mason's generic prebuilt binaries), and FATS/SUPER mode (F2) +
-  the hand-rolled statusline stay.
+  the hand-rolled statusline stay. Versions are pinned, not floating:
+  the bootstrap clones lazy.nvim and checks out a hardcoded commit SHA
+  (no `--branch=stable`), and `config/nvim/lazy-lock.json` is committed
+  — `30-dotfiles.sh`'s blanket config/ copy lands it at
+  `~/.config/nvim/lazy-lock.json`, lazy.nvim's default lockfile path.
+  Bumping a plugin version means reviewing the upstream diff between
+  old and new pinned commit before updating lazy-lock.json — same
+  review obligation as an AUR PKGBUILD bump, just without the
+  10-aur.sh script wrapping it.
 - **Emacs** — unchanged: no package manager, eglot from core. The
   tree-sitter remaps in init.el use only Emacs-29-core `*-ts-mode`s and
   are guarded by `treesit-ready-p` (language symbol, e.g. `cpp` for

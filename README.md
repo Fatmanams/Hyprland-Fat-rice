@@ -525,9 +525,14 @@ arrangement as nvim's FATS/SUPER and Emacs's supermode/fats-mode.
 still a single file, but plugin-powered since the plugin rule was
 relaxed: **lazy.nvim** specs inline (nvim-lspconfig, treesitter pinned
 to the stable `master` branch, nvim-cmp completion, telescope,
-nvim-tree). First launch clones lazy.nvim (stable branch) and installs
-the specs — needs network, once; versions resolve into the machine's
-own `lazy-lock.json`. Hard constraints documented in the file header:
+nvim-tree). First launch clones lazy.nvim pinned to a specific commit
+(not the floating `stable` branch) and installs the specs — needs
+network, once. Every plugin version is pinned: the committed
+`config/nvim/lazy-lock.json` lands at `~/.config/nvim/lazy-lock.json`
+(lazy.nvim's default lockfile path) via 30-dotfiles.sh's blanket
+config copy, and bumping a pin means reviewing the upstream diff
+between old and new commit first — the same review obligation as an
+AUR PKGBUILD bump. Hard constraints documented in the file header:
 no colorscheme plugins (pywal stays the one source of color and plugin
 UIs link into the same highlight groups), no mason (LSP servers are
 compiled/packaged system installs from `00-base.sh` and `10-aur.sh`),
@@ -821,7 +826,8 @@ linux-rice/
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (six formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)
     ├── nvim/
-    │   └── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER
+    │   ├── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER
+    │   └── lazy-lock.json                   pinned plugin commits (lazy.nvim-generated, committed)
     ├── emacs/
     │   └── init.el                          opt-in single-file Emacs config; eglot for LSP
     ├── waybar/

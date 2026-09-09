@@ -20,9 +20,14 @@
 --   * FATS/SUPER mode (F2) and the hand-rolled statusline are rice
 --     features — plugins must not replace them.
 --
--- First launch bootstraps lazy.nvim from upstream (git clone,
--- branch=stable) and installs the specs — needs network, once. The
--- resolved versions land in this machine's lazy-lock.json afterwards.
+-- First launch bootstraps lazy.nvim from upstream (clone pinned to the
+-- commit in the bootstrap block below — deliberately NOT a floating
+-- --branch=stable) and installs the specs — needs network, once. Every
+-- plugin version is pinned in config/nvim/lazy-lock.json (committed,
+-- installed to ~/.config/nvim/lazy-lock.json by 30-dotfiles.sh where
+-- lazy.nvim's default lockfile path finds it). Bumping a version means
+-- reviewing the upstream diff first — same rule as an AUR PKGBUILD
+-- bump (see AGENTS.md's editor plugin rule).
 -- =============================================================================
 
 -- ---- leader = space, vim-style -----------------------------------------------
@@ -330,8 +335,14 @@ end
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
   vim.fn.system({
-    "git", "clone", "--filter=blob:none", "--branch=stable",
+    "git", "clone", "--filter=blob:none",
     "https://github.com/folke/lazy.nvim.git", lazypath,
+  })
+  -- Pinned, not floating: stable-branch tip at lock time (v11.17.5).
+  -- Bumping lazy.nvim itself = review folke/lazy.nvim diff, update this SHA.
+  vim.fn.system({
+    "git", "-C", lazypath, "checkout",
+    "85c7ff3711b730b4030d03144f6db6375044ae82",
   })
 end
 vim.opt.rtp:prepend(lazypath)
