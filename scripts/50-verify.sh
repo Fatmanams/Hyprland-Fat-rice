@@ -107,15 +107,15 @@ fi
 
 echo "==> [7/8] Theme preset integrity (repo checkout)"
 # Same logic as .github/workflows/lint.yml's "theme presets carry every
-# pywal format" step: each preset dir must ship all seven formats, and
+# pywal format" step: each preset dir must ship all eight formats, and
 # switch-theme.sh must reference each one — a format missing from
 # either place leaves that consumer on a stale palette after a switch.
 # Keep this FORMATS list identical to lint.yml's (last updated to match:
-# 7 entries). This one intentionally runs against the repo checkout, not
+# 8 entries). This one intentionally runs against the repo checkout, not
 # ~/, so it can catch a bad commit before it ever reaches the installed
 # system.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf)
+FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc)
 theme_ok=1
 for d in "$REPO_ROOT"/config/hypr/themes/*/; do
     for f in "${FORMATS[@]}"; do
@@ -132,7 +132,7 @@ for f in "${FORMATS[@]}"; do
     fi
 done
 if [[ $theme_ok -eq 1 ]]; then
-    pass "all presets carry all 7 pywal formats and switch-theme.sh lists them"
+    pass "all presets carry all 8 pywal formats and switch-theme.sh lists them"
 else
     fail "theme preset integrity broken (see MISSING lines above)"
 fi

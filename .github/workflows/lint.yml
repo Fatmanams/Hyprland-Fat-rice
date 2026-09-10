@@ -26,10 +26,12 @@ jobs:
       - name: jq parse check (strip deliberate // comment headers first)
         run: |
           set -euo pipefail
-          for f in config/swaync/config.json config/wlogout/layout config/zed/settings.json config/zed/keymap.json; do
+          for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do
             echo "jq $f"
             sed '/^\/\//d' "$f" | jq empty
           done
+          echo "jq config/wlogout/layout (concatenated button objects)"
+          sed '/^\/\//d' config/wlogout/layout | jq -s empty
 
       - name: emacs lisp syntax check (byte-compile init.el + palette files)
         run: |
