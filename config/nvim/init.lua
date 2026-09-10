@@ -105,10 +105,12 @@ vim.filetype.add({
 
 local wal_vim_path = vim.fn.expand("~/.cache/wal/colors-wal.vim")
 local wal_enabled = false
+local wal_mtime = 0
 
 if vim.fn.filereadable(wal_vim_path) == 1 then
   vim.cmd("source " .. wal_vim_path)
   wal_enabled = true
+  wal_mtime = vim.fn.getftime(wal_vim_path)
 end
 
 -- Baked fallback palette (Catppuccin Mocha approximation) used as the
@@ -200,6 +202,19 @@ hl(0, "TabLineSel",   { bg = P.bg_alt, fg = P.fg, bold = true })
 hl(0, "TabLineFill",  { bg = P.bg_alt })
 hl(0, "NormalFloat",  { bg = P.bg_alt, fg = P.fg })
 hl(0, "FloatBorder",  { fg = P.border, bg = P.bg_alt })
+
+-- Preset switches replace colors-wal.vim while nvim may remain open.
+-- Reapply the shared Vimscript palette when the editor regains focus.
+vim.api.nvim_create_autocmd("FocusGained", {
+  callback = function()
+    local current_mtime = vim.fn.getftime(wal_vim_path)
+    if current_mtime > 0 and current_mtime ~= wal_mtime then
+      vim.cmd("source " .. wal_vim_path)
+      vim.cmd("source " .. vim.fn.expand("~/.config/nvim/theme-reload.vim"))
+      wal_mtime = current_mtime
+    end
+  end,
+})
 
 -- Plugin UI groups link into the palette above so the IDE layer follows
 -- wal without shipping theme plugins (rule: no colorscheme plugins).

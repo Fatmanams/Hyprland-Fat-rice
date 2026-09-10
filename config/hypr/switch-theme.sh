@@ -66,7 +66,21 @@ apply() {
         eww close bar_main 2>/dev/null || true
         eww open bar_main 2>/dev/null || true
     fi
-    # swaync / rofi / wlogout / nvim read colors at their next start.
+    if command -v swaync-client >/dev/null 2>&1 \
+            && pgrep -x swaync >/dev/null 2>&1; then
+        swaync-client --reload-config >/dev/null 2>&1 || true
+        swaync-client --reload-style >/dev/null 2>&1 || true
+    fi
+    if command -v hyprctl >/dev/null 2>&1; then
+        hyprctl reload >/dev/null 2>&1 || true
+    fi
+    if command -v emacsclient >/dev/null 2>&1; then
+        emacsclient --eval '(load-file (expand-file-name "~/.config/emacs/init.el"))' \
+            >/dev/null 2>&1 || true
+    fi
+    # Rofi and wlogout are transient; they read the new palette next time
+    # they launch. Neomutt and ikhal likewise start with the current files.
+    # Nvim reapplies its palette when an existing session regains focus.
 }
 
 cycle() {
