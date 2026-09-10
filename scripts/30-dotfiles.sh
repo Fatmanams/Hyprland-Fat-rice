@@ -48,7 +48,11 @@ touch "$HOME/.config/hypr/keybinds-extra.conf"
 # the file is picked up immediately by xdg-mime and rofi.
 echo "==> Installing zed-handler.desktop into ~/.local/share/applications/"
 mkdir -p "$HOME/.local/share/applications"
-cp -f "$CFG_SRC/applications/zed-handler.desktop" "$HOME/.local/share/applications/" 2>/dev/null || true
+if [[ ! -f "$CFG_SRC/applications/zed-handler.desktop" ]]; then
+    echo "Expected $CFG_SRC/applications/zed-handler.desktop to exist."
+    exit 1
+fi
+cp -f "$CFG_SRC/applications/zed-handler.desktop" "$HOME/.local/share/applications/"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
     echo "    (update-desktop-database not available — install desktop-file-utils)"
 

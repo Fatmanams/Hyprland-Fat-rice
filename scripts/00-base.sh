@@ -24,7 +24,16 @@ if ! grep -q '^\[multilib\]' /etc/pacman.conf; then
 else
     echo "    multilib already enabled."
 fi
-sudo pacman -Sy
+if ! awk '
+    /^\[multilib\]$/ { in_multilib=1; next }
+    /^\[/ { in_multilib=0 }
+    in_multilib && /^Include = \/etc\/pacman\.d\/mirrorlist$/ { found=1 }
+    END { exit !found }
+' /etc/pacman.conf; then
+    sudo sed -i '/^#Include = \/etc\/pacman\.d\/mirrorlist/ s/^#//' /etc/pacman.conf
+    echo "    multilib mirrorlist enabled."
+fi
+sudo pacman -Syu --needed --noconfirm
 
 echo "==> [2/3] Configuring /etc/makepkg.conf for parallelism + ccache"
 MAKEPKG=/etc/makepkg.conf
@@ -37,8 +46,11 @@ fi
 if ! command -v ccache >/dev/null 2>&1; then
     sudo pacman -S --noconfirm --needed ccache
 fi
-if ! grep -q '!ccache' "$MAKEPKG"; then
-    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color !ccache check !sign)|' "$MAKEPKG"
+if grep -q '^BUILDENV=' "$MAKEPKG" && grep -q '!ccache' "$MAKEPKG"; then
+    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
+    echo "    ccache enabled in BUILDENV"
+elif ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
+    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
     echo "    ccache enabled in BUILDENV"
 else
     echo "    ccache already in BUILDENV"
@@ -84,7 +96,7 @@ sudo pacman -S --needed --noconfirm \
 
 echo "==> [3.5/4] GPU driver layer (NVIDIA or Intel/AMD — pick one)"
 GPU_CHOSEN=0
-CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei ' VGA compatible controller: ' | head -n1)
+CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei '(VGA compatible controller|3D controller|Display controller):' || true)
 echo "    Detected GPU line: ${CURRENT_GPU:-unknown}"
 
 if echo "$CURRENT_GPU" | grep -qi 'nvidia'; then

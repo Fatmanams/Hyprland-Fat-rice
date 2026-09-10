@@ -68,6 +68,7 @@ BUILDROOT="${BUILDROOT:-$HOME/build/aur}"
 AUR_BASE="https://aur.archlinux.org"
 
 mkdir -p "$BUILDROOT"
+SKIPPED_PACKAGES=()
 
 # Ensure local repo is set up + registered in pacman.conf once.
 setup_local_repo() {
@@ -150,6 +151,7 @@ build_one() {
     read -r yn
     if [[ ! "$yn" =~ ^[Yy]$ ]]; then
         echo "    Skipped by user. Moving on (package will NOT be installed)."
+        SKIPPED_PACKAGES+=( "$pkgname" )
         return 0
     fi
 
@@ -191,6 +193,9 @@ for p in "${PACKAGES[@]}"; do
 done
 
 echo
-echo "==> All AUR builds done."
-echo "==> Installed from [$LOCALREPO_NAME]: ${PACKAGES[*]}"
+echo "==> AUR build pass done."
+if [[ ${#SKIPPED_PACKAGES[@]} -gt 0 ]]; then
+    echo "==> Skipped (not installed): ${SKIPPED_PACKAGES[*]}"
+fi
+echo "==> Requested from [$LOCALREPO_NAME]: ${PACKAGES[*]}"
 echo "==> Next: ./20-sddm.sh"
