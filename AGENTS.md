@@ -116,9 +116,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     │   ├── hypridle.conf       idle / lock / suspend listeners
     │   ├── switch-theme.sh     preset palette switcher (SUPER+SHIFT+T cycles)
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/   pre-generated pywal-format palettes
-    │   │                        (each carries all 7 formats: waybar.css, rofi.rasi,
-    │   │                         wal.vim, colors.el, colors.sh, colors-zed.json,
-    │   │                         colors-hyprland.conf)
+    │   │                        (each carries all 8 formats, including colors-neomutt.muttrc)
     │   └── gpu-env.sh          NVIDIA/Intel/AMD auto-detect env shim (source from shell rc)
     ├── nvim/
     │   ├── init.lua            single-file nvim IDE config; lazy.nvim plugin
@@ -132,6 +130,11 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     │                           prog-mode-hook, core *-ts-mode remaps are
     │                           guarded by treesit-ready-p, F2 = FATS/SUPER
     ├── waybar/{config,style.css}
+    ├── neomutt/                    terminal email client + account examples
+    ├── khal/                       terminal calendar viewer
+    ├── vdirsyncer/                 Google Calendar sync config example
+    ├── isync/                      Maildir synchronization config
+    ├── msmtp/                      SMTP sending config
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}

@@ -9,7 +9,8 @@
 #
 # Each preset dir MUST carry every pywal output format the rice consumes
 # (colors-waybar.css, colors-rofi.rasi, colors-wal.vim, colors.el,
-# colors.sh, colors-zed.json, colors-hyprland.conf) — see AGENTS.md's
+# colors.sh, colors-zed.json, colors-hyprland.conf, colors-neomutt.muttrc)
+# — see AGENTS.md's
 # palette contract. Adding a consumer that reads a new format means
 # adding that file to every preset AND to the cp below with the same name,
 # or theme switching leaves it on a stale palette.
@@ -46,6 +47,7 @@ apply() {
           "$THEME_SRC/$name/colors.sh" \
           "$THEME_SRC/$name/colors-zed.json" \
           "$THEME_SRC/$name/colors-hyprland.conf" \
+          "$THEME_SRC/$name/colors-neomutt.muttrc" \
           "$WAL_DIR/"
     echo "$name" > "$MARKER"
 

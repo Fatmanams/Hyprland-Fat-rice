@@ -67,6 +67,15 @@ update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
 # make them now so nothing errors out.
 mkdir -p "$HOME/.cache/wal"
 
+# Calendar sync is opt-in until the user fills the OAuth example.
+if [[ -f "$HOME/.config/vdirsyncer/config" ]]; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now vdirsyncer-google.timer
+else
+    echo "    vdirsyncer config not present; copy config.example after adding OAuth credentials."
+fi
+chmod 600 "$HOME/.config/msmtp/config" "$HOME/.config/isync/mbsyncrc"
+
 # Zed follows the palette through a symlinked custom theme: wal renders
 # config/wal/templates/colors-zed.json into ~/.cache/wal/colors-zed.json,
 # presets copy theirs into the same path (switch-theme.sh), and Zed

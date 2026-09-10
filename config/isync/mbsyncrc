@@ -1,0 +1,41 @@
+IMAPAccount gmail
+Host imap.gmail.com
+User you@gmail.com
+AuthMechs XOAUTH2
+PassCmd "~/.config/neomutt/oauth/mutt_oauth2.py ~/.config/neomutt/oauth/gmail.token"
+SSLType IMAPS
+
+IMAPStore gmail-remote
+Account gmail
+MaildirStore gmail-local
+Path ~/Mail/gmail/
+Inbox ~/Mail/gmail/Inbox
+SubFolders Verbatim
+
+Channel gmail
+Far :gmail-remote:
+Near :gmail-local:
+Patterns *
+Create Both
+Expunge Both
+SyncState *
+
+IMAPAccount other
+Host imap.example.com
+User you@example.com
+PassCmd "pass mail/other"
+SSLType IMAPS
+IMAPStore other-remote
+Account other
+MaildirStore other-local
+Path ~/Mail/other/
+Inbox ~/Mail/other/Inbox
+SubFolders Verbatim
+
+Channel other
+Far :other-remote:
+Near :other-local:
+Patterns *
+Create Both
+Expunge Both
+SyncState *

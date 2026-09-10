@@ -1,0 +1,6 @@
+[Unit]
+Description=Synchronize Google Calendar
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/vdirsyncer sync google_calendar

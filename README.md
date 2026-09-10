@@ -66,6 +66,7 @@ source is used. The packages this rice does compile use CPU-native flags
 | Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
+| Email / calendar | neomutt + khal + vdirsyncer | pacman (extra) | Neomutt mail, ikhal calendar, Google Calendar sync |
 | HTML/CSS/JSON LSP | vscode-langservers-extracted | **AUR — makepkg'd** | the only LSP not in official repos |
 | Browser          | helium-browser       | **AUR — helium-browser-bin** | default; xdg-mime default for http(s)/ftp/html |
 | Media player     | vlc                  | pacman (extra)          | default for video/audio MIME types; ships `config/vlc/vlcrc` (deliberately minimal — decoding and snapshot dir left on VLC's defaults, see file comments) |
@@ -86,8 +87,6 @@ source is used. The packages this rice does compile use CPU-native flags
 | MAC / shields    | apparmor             | pacman (extra)          | LSM mandatory access control; inert until the kernel cmdline opt-in — first-boot TODO #4 |
 | Per-app sandbox  | firejail             | pacman (extra)          | wrap a single app: `firejail <cmd>`; profiles in /etc/firejail |
 | Snapshots        | snapper / timeshift + cronie | pacman (extra)   | picked by root fs — btrfs gets snapper, anything else gets Timeshift RSYNC (`45-snapshots.sh`) |
-
-
 ---
 
 ## Source-built package inventory
@@ -117,6 +116,19 @@ repos** — these are installed by `scripts/00-base.sh`, **not** built:
 - `cliphist` — in `extra`
 - `nwg-look` — in `extra`
 - `kvantum` and `kvantum-qt5` — in `extra`
+
+### Mail and calendar setup
+
+Copy the account examples into `~/.config/neomutt/accounts/`, replace
+their placeholders, and keep the real files uncommitted. The Gmail
+account uses OAuth2 through Neomutt's packaged `mutt_oauth2.py`; locate
+it with `pacman -Ql neomutt | grep oauth2`, then authorize the token
+under `~/.config/neomutt/oauth/`.
+
+Copy `~/.config/vdirsyncer/config.example` to
+`~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
+client credentials, then run `vdirsyncer discover google_calendar`.
+`30-dotfiles.sh` enables the user timer once this real config exists.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"

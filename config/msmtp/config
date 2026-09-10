@@ -1,0 +1,22 @@
+defaults
+auth on
+tls on
+logfile ~/.cache/msmtp.log
+
+account gmail
+host smtp.gmail.com
+port 587
+from you@gmail.com
+user you@gmail.com
+auth xoauth2
+passwordeval "~/.config/neomutt/oauth/mutt_oauth2.py ~/.config/neomutt/oauth/gmail.token"
+
+account other
+host smtp.example.com
+port 587
+from you@example.com
+user you@example.com
+auth login
+passwordeval "pass mail/other"
+
+account default : gmail

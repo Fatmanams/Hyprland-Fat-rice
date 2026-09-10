@@ -1,0 +1,21 @@
+source ~/.cache/wal/colors-neomutt.muttrc
+set mbox_type = Maildir
+set folder = ~/Mail
+set spoolfile = "+gmail/Inbox"
+mailboxes "+gmail/Inbox" "+other/Inbox"
+source ~/.config/neomutt/accounts/gmail.muttrc
+source ~/.config/neomutt/accounts/other.muttrc
+set sidebar_visible = yes
+set sidebar_width = 22
+set mail_check_stats
+bind index,pager \Cp sidebar-prev
+bind index,pager \Cn sidebar-next
+bind index,pager \Co sidebar-open
+bind index,pager j next-line
+bind index,pager k previous-line
+set editor = "nvim"
+set index_format = "%4C %Z %{%b %d} %-20.20L %s"
+set crypt_use_gpgme = yes
+set crypt_autosign = yes
+set crypt_opportunistic_encrypt = yes
+set pgp_default_key = "YOUR_GPG_KEY_ID_HERE"

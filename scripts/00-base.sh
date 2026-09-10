@@ -109,6 +109,7 @@ sudo pacman -S --needed --noconfirm \
     ttf-jetbrains-mono-nerd ttf-nerd-fonts-symbols \
     fontconfig \
     jq curl wget git base-devel \
+    neomutt isync msmtp gnupg khal vdirsyncer \
     gcc clang make cmake meson ninja pkgconf \
     imagemagick ffmpeg \
     pciutils mesa-demos \
