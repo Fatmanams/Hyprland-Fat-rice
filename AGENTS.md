@@ -135,6 +135,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── vdirsyncer/                 Google Calendar sync config example
     ├── isync/                      Maildir synchronization config
     ├── msmtp/                      SMTP sending config
+    ├── ai-tools/                   terminal AI tool launch commands
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}

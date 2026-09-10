@@ -67,6 +67,7 @@ source is used. The packages this rice does compile use CPU-native flags
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
 | Email / calendar | neomutt + khal + vdirsyncer | pacman (extra) | Neomutt mail, ikhal calendar, Google Calendar sync |
+| AI coding tools | Claude Code + DeepSeek Harness + Kilo Code | user-installed CLIs | Terminal launch bindings; credentials stay in each tool's own config |
 | HTML/CSS/JSON LSP | vscode-langservers-extracted | **AUR — makepkg'd** | the only LSP not in official repos |
 | Browser          | helium-browser       | **AUR — helium-browser-bin** | default; xdg-mime default for http(s)/ftp/html |
 | Media player     | vlc                  | pacman (extra)          | default for video/audio MIME types; ships `config/vlc/vlcrc` (deliberately minimal — decoding and snapshot dir left on VLC's defaults, see file comments) |
@@ -129,6 +130,21 @@ Copy `~/.config/vdirsyncer/config.example` to
 `~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
 client credentials, then run `vdirsyncer discover google_calendar`.
 `30-dotfiles.sh` enables the user timer once this real config exists.
+
+### AI coding tools
+
+The Hyprland config provides terminal launch bindings for locally
+installed AI coding tools:
+
+- `SUPER+SHIFT+A` — Claude Code (`claude`)
+- `SUPER+SHIFT+D` — DeepSeek Harness (`deepseek-harness`)
+- `SUPER+SHIFT+I` — Kilo Code (`kilo`)
+
+These tools are intentionally not installed by the rice. Set the
+`$claude_code`, `$deepseek_harness`, or `$kilo_code` variables in
+`~/.config/hypr/hyprland.conf` if a local installation uses a different
+command name. API keys and authentication remain in each tool's own
+credential store and are not committed here.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"
