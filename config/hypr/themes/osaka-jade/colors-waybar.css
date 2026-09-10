@@ -1,0 +1,26 @@
+/* osaka-jade preset - pre-generated pywal-format palette.
+   Ported from omarchy's upstream palette (omacom/omarchy,
+   themes/osaka-jade/colors.toml) — values, not guesses.
+   color0/color8 fill this repo's slot roles from upstream's
+   lighter_background/muted (see AGENTS.md palette contract).
+   Applied by ~/.config/hypr/switch-theme.sh into ~/.cache/wal/.
+   Do not hand-edit the copies in ~/.cache/wal - they are regenerated. */
+@define-color background #111c18;
+@define-color foreground #C1C497;
+@define-color cursor #C1C497;
+@define-color color0 #23372B;
+@define-color color1 #FF5345;
+@define-color color2 #549e6a;
+@define-color color3 #459451;
+@define-color color4 #509475;
+@define-color color5 #D2689C;
+@define-color color6 #2DD5B7;
+@define-color color7 #D6D5BC;
+@define-color color8 #53685B;
+@define-color color9 #db9f9c;
+@define-color color10 #63b07a;
+@define-color color11 #E5C736;
+@define-color color12 #ACD4CF;
+@define-color color13 #75bbb3;
+@define-color color14 #8CD3CB;
+@define-color color15 #F7E8B2;

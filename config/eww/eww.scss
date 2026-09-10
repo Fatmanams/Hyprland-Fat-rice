@@ -1,9 +1,10 @@
-/* eww.scss — colors sourced from pywal16 via the same ~/.cache/wal/colors.css
- * the rest of the rice uses. eww compiles this to CSS at open time; if colors
- * look wrong, run `wal -i ~/.config/hypr/wallpaper.jpg` then `eww reload`
- * (or open the widget again).
+/* eww.scss — colors sourced from pywal16 via the stock
+ * ~/.cache/wal/colors-waybar.css GTK template (`@define-color` values),
+ * same file the rest of the rice uses. eww compiles this to CSS at open
+ * time; if colors look wrong, run `wal -i ~/.config/hypr/wallpaper.jpg`
+ * then `eww reload` (or open the widget again).
  */
-@import "../../.cache/wal/colors.css";
+@import "../../.cache/wal/colors-waybar.css";
 
 * { all: unset; font-family: "JetBrainsMono Nerd Font"; font-size: 13px; }
 

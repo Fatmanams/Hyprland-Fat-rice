@@ -3,13 +3,16 @@
 #
 # Single monitor, AMD/Intel iGPU. No NVIDIA env needed.
 # Font: JetBrainsMono Nerd Font (pacman: ttf-jetbrains-mono-nerd, 00-base.sh).
-# Color palette baked here as Catppuccin Mocha; pywal16 also writes a live
-# palette to ~/.cache/wal/colors.json when it runs, but Ghostty reads its
-# own config file rather than importing CSS — so the dynamic palette
-# doesn't auto-apply. If you want pywal-driven Ghostty colors, write a
-# small post-wal hook that regenerates ~/.config/ghostty/colors.conf and
-# `ghostty +reload-config`s running windows. Left as a TODO in the README.
+# Colors: the Catppuccin Mocha palette baked below is only the FALLBACK
+# for before wal first runs. After that, ghostty-theme.sh (same dir)
+# regenerates ./colors.conf from ~/.cache/wal/colors.sh — wallpaper mode
+# (wal -i) and preset mode (switch-theme.sh) alike — and reloads running
+# instances. Ghostty applies config-file includes AFTER this file, so
+# colors.conf wins whenever it exists; the `?` prefix keeps the include
+# silent while it doesn't.
 # =============================================================================
+
+config-file = ?colors.conf
 
 # ---- Font ----------------------------------------------------------------
 font-family = JetBrainsMono Nerd Font
@@ -18,8 +21,6 @@ font-feature = -calt
 font-feature = -liga
 
 # ---- Window -------------------------------------------------------------
-padding-x = 12
-padding-y = 10
 window-padding-x = 12
 window-padding-y = 10
 window-decoration = false
@@ -42,7 +43,7 @@ cursor-style = bar
 cursor-style-blink = true
 
 # ---- Shell + working dir ------------------------------------------------
-command = /usr/bin/zsh   # if you use bash, swap. zsh ships with base.
+command = /usr/bin/fish   # installed by 00-base.sh; verify path with `which fish`
 working-directory = home
 
 # ---- Catppuccin Mocha (baked default; pywal override noted above) -------

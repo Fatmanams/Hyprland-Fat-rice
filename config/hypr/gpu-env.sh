@@ -12,20 +12,26 @@
 # Vulkan games, and any CLI tool that respects $LIBVA_DRIVER_NAME,
 # $MESA_*, $NV_*, $__GL_*, $VK_* etc.
 #
-# Detection: looks for the running GPU by parsing `lspci -nn`.
+# Detection: looks for the running GPU by parsing `lspci` (run once below;
+# plain output, NOT `lspci -nn` — with -nn the class code is inserted
+# between the controller name and the colon ("VGA compatible controller
+# [0300]: ..."), which breaks name-based greps).
 # Both `lspci` and `glxinfo` are installed by 00-base.sh (pciutils is
 # a base dep; glxinfo comes from `mesa-demos` — added to 00-base).
 
 gpu_env_loaded=0
 
 # ---- Detect vendor ------------------------------------------------------
+# One lspci call per shell start; vendor detection and the GPU-count check
+# below both grep this same capture.
+pci=""
+if command -v lspci >/dev/null 2>&1; then
+    pci=$(lspci)
+fi
+
 gpu_vendor() {
-    if ! command -v lspci >/dev/null 2>&1; then
-        echo unknown
-        return
-    fi
     local line
-    line=$(lspci -nn | grep -Ei '(VGA compatible controller|3D controller|Display controller):' || true)
+    line=$(printf '%s\n' "$pci" | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
     if printf '%s\n' "$line" | grep -qi NVIDIA; then
         echo nvidia
     elif printf '%s\n' "$line" | grep -qi 'Advanced Micro Devices'; then
@@ -40,7 +46,14 @@ gpu_vendor() {
 VENDOR=$(gpu_vendor)
 
 # ---- Common (any GPU) ---------------------------------------------------
-export DRI_PRIME=1                              # honour PRIME offload if present (laptops)
+# DRI_PRIME=1 only makes sense on PRIME/hybrid setups (iGPU + dGPU). On a
+# single-GPU box it can point apps at a render node that doesn't exist, so
+# only export it when lspci reports more than one GPU controller.
+gpu_count=$(printf '%s\n' "$pci" | grep -cEi '(VGA compatible controller|3D controller|Display controller)' || true)
+if [ "$gpu_count" -gt 1 ]; then
+    export DRI_PRIME=1                          # honour PRIME offload (hybrid laptops/desktops)
+fi
+unset gpu_count
 # (Previously had `VK_ICD_FILENAMES_ALL_KNOWN=1` here — that's not a real
 # Vulkan loader env var per Khronos's loader docs at
 # https://github.com/KhronosGroup/Vulkan-Loader/blob/main/docs/LoaderInterfaceArchitecture.md
@@ -89,4 +102,5 @@ elif [ "$VENDOR" = amd ] || [ "$VENDOR" = intel ]; then
 fi
 
 unset -f gpu_vendor
+unset pci
 gpu_env_loaded=1

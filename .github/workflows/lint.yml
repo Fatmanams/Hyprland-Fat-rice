@@ -1,0 +1,77 @@
+name: lint
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: bash -n syntax check (AGENTS.md minimum)
+        run: |
+          set -euo pipefail
+          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh; do
+            echo "bash -n $f"
+            bash -n "$f"
+          done
+
+      - name: shellcheck (error severity)
+        run: |
+          set -euo pipefail
+          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh
+
+      - name: jq parse check (strip deliberate // comment headers first)
+        run: |
+          set -euo pipefail
+          for f in config/swaync/config.json config/wlogout/layout config/zed/settings.json config/zed/keymap.json; do
+            echo "jq $f"
+            sed '/^\/\//d' "$f" | jq empty
+          done
+
+      - name: emacs lisp syntax check (byte-compile init.el + palette files)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq emacs-nox
+          # -Q: no site/user init, so nothing on the runner influences the
+          # result. Byte-compiling surfaces unbalanced parens and malformed
+          # forms — the class of breakage worth catching here (the config is
+          # loaded, not linted, at runtime). The .elc files it writes are
+          # build artifacts of the check and are not committed.
+          for f in config/emacs/init.el config/hypr/themes/*/colors.el; do
+            echo "byte-compile $f"
+            emacs -Q --batch -f batch-byte-compile "$f"
+          done
+          find config -name '*.elc' -delete
+
+      - name: theme presets carry every pywal format
+        run: |
+          set -euo pipefail
+          # AGENTS.md palette contract: each preset must ship all seven
+          # formats, and switch-theme.sh must copy each one.
+          rc=0
+          for d in config/hypr/themes/*/; do
+            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+              if [ ! -f "$d$f" ]; then
+                echo "MISSING: $d$f"
+                rc=1
+              fi
+            done
+          done
+          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+            if ! grep -q "$f" config/hypr/switch-theme.sh; then
+              echo "MISSING from switch-theme.sh cp list: $f"
+              rc=1
+            fi
+          done
+          exit $rc
+
+      - name: nvim init.lua syntax (LuaJIT parse — nvim's dialect)
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq luajit
+          luajit -bl config/nvim/init.lua /dev/null

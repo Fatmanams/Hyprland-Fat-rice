@@ -35,6 +35,13 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
+# config/applications/ only exists as the source for the .desktop install
+# below — it does NOT belong under ~/.config/ (nothing reads
+# ~/.config/applications/). Remove the stray copy the blanket cp made;
+# the real copy lands in ~/.local/share/applications/. Anything removed
+# here is recoverable from the $BAK backup taken above.
+rm -rf "$HOME/.config/applications"
+
 # Hyprland's `source = ~/.config/hypr/keybinds-extra.conf` line cannot
 # take shell redirects, so the file MUST exist for the compositor to load
 # the main config without error. cp -a above covers this from the repo's
@@ -60,14 +67,27 @@ update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
 # make them now so nothing errors out.
 mkdir -p "$HOME/.cache/wal"
 
+# Zed follows the palette through a symlinked custom theme: wal renders
+# config/wal/templates/colors-zed.json into ~/.cache/wal/colors-zed.json,
+# presets copy theirs into the same path (switch-theme.sh), and Zed
+# hot-reloads theme files on change. The link is made here because wal
+# itself will only ever write under ~/.cache/wal/.
+mkdir -p "$HOME/.config/zed/themes"
+ln -sf "$HOME/.cache/wal/colors-zed.json" "$HOME/.config/zed/themes/pywal.json"
+
 echo "==> Generating first pywal palette from wallpaper (if set)"
 WALLPAPER="$HOME/.config/hypr/wallpaper.jpg"
+chmod +x "$HOME/.config/hypr/switch-theme.sh"
 if [[ -f "$WALLPAPER" ]]; then
     wal -i "$WALLPAPER" -q
     echo "    wal ran. colors at ~/.cache/wal/colors.sh"
 else
     echo "    no wallpaper at $WALLPAPER — hypr/wallpaper.jpg is a TODO."
     echo "    drop a jpg there and run: wal -i ~/.config/hypr/wallpaper.jpg"
+    # No wallpaper yet: seed the default preset so waybar/rofi/nvim have
+    # colors on first boot. switch-theme.sh writes into ~/.cache/wal/;
+    # running `wal -i` later switches back to wallpaper mode.
+    "$HOME/.config/hypr/switch-theme.sh" mocha
 fi
 
 echo

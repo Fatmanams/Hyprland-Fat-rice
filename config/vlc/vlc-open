@@ -1,0 +1,33 @@
+#!/bin/sh
+# vlc-open — resolve-then-play URL launcher for VLC (SUPER+SHIFT+M bind).
+#
+# VLC's bundled youtube.lua breaks basically every time YouTube changes
+# their player and is broken on current VLC releases, so we never hand
+# VLC a page URL — resolution happens HERE, before VLC starts:
+#
+#   * twitch.tv URLs  -> streamlink handles the live stream natively and
+#     launches VLC itself (--player vlc)
+#   * everything else -> yt-dlp -g resolves the page to a direct stream
+#     URL and THAT is what VLC opens
+#
+# Both resolvers are official-repo packages installed by 00-base.sh.
+# Usage: vlc-open <url>          ($1 only — no quoting games, one URL)
+
+set -eu
+
+if [ $# -lt 1 ] || [ -z "$1" ]; then
+    echo "usage: vlc-open <url>" >&2
+    exit 2
+fi
+
+case "$1" in
+    *twitch.tv*)
+        streamlink --player vlc -- "$1" best
+        ;;
+    *)
+        # assignment fails loudly under set -e if yt-dlp can't resolve,
+        # instead of vlc opening an empty argument.
+        url=$(yt-dlp -g -- "$1")
+        vlc "$url"
+        ;;
+esac

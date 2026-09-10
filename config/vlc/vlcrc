@@ -1,0 +1,17 @@
+[core]
+
+# snapshot-path is deliberately NOT set: VLC does no tilde (~) expansion
+# on this option (verified against VLC 3.0's src/video_output/snapshot.c
+# — it vlc_stat()s the raw string), so a ~/... value would silently
+# create a literal '~' file instead of snapshotting into your home.
+# The unset default is the user Pictures dir (config_GetUserDir), which
+# 00-base.sh's xdg-user-dirs-update guarantees exists.
+
+# avcodec-hw defaults to "any" (auto hardware-decode with software
+# fallback) — verified against `vlc -H --advanced` output directly, not
+# assumed. Deliberately not overridden: per-backend values (e.g. vaapi)
+# CAN be forced, but community reports on AMD+Wayland hardware-decode
+# forcing are mixed enough that the working default is the safer
+# choice. If 4K/AV1 playback stutters on the Vega 7 iGPU, check
+# Tools > Codec Information while a video is playing before changing
+# anything here.

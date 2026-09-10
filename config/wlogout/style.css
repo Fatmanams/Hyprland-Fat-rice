@@ -1,11 +1,12 @@
-/* wlogout style.css — pywal16-driven via @import. Buttons use Material
+/* wlogout style.css — pywal16-driven via @import of the stock pywal16
+ * ~/.cache/wal/colors-waybar.css GTK template. Buttons use Material
  * Symbols Rounded (ships with ttf-nerd-fonts-symbols is NOT this font;
  * this expects you to install Material Symbols Rounded separately, OR
  * swap the icon glyphs below for ASCII). Default uses plain text labels
  * so it works out of the box. If you want icons, install the font then
  * replace the label text in `layout` with icon glyphs.
  */
-@import "../../.cache/wal/colors.css";
+@import "../../.cache/wal/colors-waybar.css";
 
 * {
     font-family: "JetBrainsMono Nerd Font";

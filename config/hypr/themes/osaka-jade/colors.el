@@ -1,0 +1,22 @@
+;; osaka-jade preset - matches the config/wal/templates/colors.el output.
+;; Loaded by config/emacs/init.el via ~/.cache/wal/colors.el.
+;; Palette ported from omarchy upstream (themes/osaka-jade/colors.toml).
+(setq wal-background "#111c18")
+(setq wal-foreground "#C1C497")
+(setq wal-cursor "#C1C497")
+(setq wal-color0 "#23372B")
+(setq wal-color1 "#FF5345")
+(setq wal-color2 "#549e6a")
+(setq wal-color3 "#459451")
+(setq wal-color4 "#509475")
+(setq wal-color5 "#D2689C")
+(setq wal-color6 "#2DD5B7")
+(setq wal-color7 "#D6D5BC")
+(setq wal-color8 "#53685B")
+(setq wal-color9 "#db9f9c")
+(setq wal-color10 "#63b07a")
+(setq wal-color11 "#E5C736")
+(setq wal-color12 "#ACD4CF")
+(setq wal-color13 "#75bbb3")
+(setq wal-color14 "#8CD3CB")
+(setq wal-color15 "#F7E8B2")

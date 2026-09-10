@@ -1,8 +1,8 @@
 {
     // waybar config — top bar, single-monitor layout. pywal16 ships colors
-    // to ~/.cache/wal/colors.css via the `wal -i` exec-once in hyprland.conf;
-    // style.css @import's that. To change colors: swap the wallpaper, re-run
-    // `wal -i <path>`, killall waybar, restart waybar.
+    // to ~/.cache/wal/colors-waybar.css via the `wal -i` exec-once in
+    // hyprland.conf; style.css @import's that. To change colors: swap the
+    // wallpaper, re-run `wal -i <path>`, killall waybar, restart waybar.
     "layer": "top",
     "position": "top",
     "height": 30,

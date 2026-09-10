@@ -1,0 +1,22 @@
+/* osaka-jade preset - matches config/wal/templates/colors-rofi.rasi variable names.
+   Palette ported from omarchy upstream (themes/osaka-jade/colors.toml). */
+* {
+    background:  #111c18;
+    foreground:  #C1C497;
+    color0: #23372B;
+    color1: #FF5345;
+    color2: #549e6a;
+    color3: #459451;
+    color4: #509475;
+    color5: #D2689C;
+    color6: #2DD5B7;
+    color7: #D6D5BC;
+    color8: #53685B;
+    color9: #db9f9c;
+    color10: #63b07a;
+    color11: #E5C736;
+    color12: #ACD4CF;
+    color13: #75bbb3;
+    color14: #8CD3CB;
+    color15: #F7E8B2;
+}

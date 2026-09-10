@@ -5,6 +5,9 @@
 \#*\#
 .\#*
 
+# Emacs byte-compiled output (CI byte-compiles init.el as a syntax check)
+*.elc
+
 # Local pacman cache and build artifacts leftover from manual testing
 *.pkg.tar.zst
 *.pkg.tar.xz

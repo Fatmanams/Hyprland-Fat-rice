@@ -23,7 +23,10 @@
 #     bibata-cursor-theme    https://aur.archlinux.org/bibata-cursor-theme.git
 #     wlogout                https://aur.archlinux.org/wlogout.git
 #     zed                    https://aur.archlinux.org/zed.git
-#     brave-bin              https://aur.archlinux.org/brave-bin.git
+#     helium-browser-bin     https://aur.archlinux.org/helium-browser-bin.git
+#     mpvpaper               https://aur.archlinux.org/mpvpaper.git
+#     vscode-langservers-extracted
+#                            https://aur.archlinux.org/vscode-langservers-extracted.git
 #
 #     (Zed is NATIVE AUR-only — no curl|bash installer, no official repo —
 #     so per the policy it goes through this same reviewed-makepkg pipeline.
@@ -31,10 +34,32 @@
 #     that fetches many Cargo crates from crates.io and may download extra
 #     assets at build time. Look at all source=() entries.)
 #
-#     (brave-bin: precompiled Brave browser in .deb form, repackaged to
-#     .pkg.tar.zst. The PKGBUILD downloads from Brave's CDN at build time
-#     and unwraps the upstream .deb — that is NOT curl|bash, it's
-#     downloading a signed binary distribution. Read the PKGBUILD anyway.)
+#     (helium-browser-bin: precompiled Helium (imputnet chromium fork),
+#     repackaged from the upstream release tarball. Reviewed PKGBUILD
+#     0.16.4.1-1: source is the pinned GitHub release tarball WITH its
+#     .asc verified via validpgpkeys (Helium signing key), plus two
+#     local sha256-pinned patches and the ungoogled-chromium license.
+#     package() copies the unpacked tree into /opt and symlinks a wrapper
+#     to /usr/bin/helium-browser; desktop file installed as helium.desktop.
+#     No build(), no install hooks, no curl|bash, no suspicious URLs.)
+#
+#     (mpvpaper: video wallpaper daemon for wlroots compositors. Reviewed
+#     PKGBUILD 1.9-1 against the live AUR copy: source is a pinned GitHub
+#     release tarball with a b2sum, built with meson/ninja, depends on
+#     libmpv.so + libwayland (mpv is pulled in automatically by makepkg -s),
+#     optdepends socat for socket control, no install hooks, no curl|bash,
+#     no suspicious URLs. No red flags.)
+#
+#     (vscode-langservers-extracted: the HTML/CSS/JSON/ESLint language
+#     servers extracted from VSCode, used by Zed and by Emacs' eglot —
+#     the rest of the LSP stack is official-repo and installed by
+#     00-base.sh. Reviewed PKGBUILD 4.10.0-1 against the live AUR copy:
+#     single source, the upstream npm registry tarball, pinned with a
+#     sha256sum; package() is a local `npm i -g` into $pkgdir with the
+#     cache confined to $srcdir, plus a chown and a license install. No
+#     build(), no install hooks, no curl|bash. Note it IS an npm package,
+#     so the tarball vendors its own node_modules — that's inherent to
+#     the upstream distribution, not something the PKGBUILD adds.)
 #
 #
 # Items your original policy listed as AUR-only but which are now in
@@ -87,7 +112,6 @@ setup_local_repo() {
 SigLevel = Optional TrustAll
 Server = file://$LOCALREPO_DIR
 EOF
-        sudo pacman -Sy
     fi
 }
 
@@ -171,7 +195,6 @@ build_one() {
         cp "$pkg" "$LOCALREPO_DIR/"
         ( cd "$LOCALREPO_DIR" && repo-add "$LOCALREPO_NAME.db.tar.zst" "$(basename "$pkg")" )
     done
-    sudo pacman -Sy
     # Install by name from the local repo explicitly.
     sudo pacman -S --noconfirm --needed "$pkgname"
 }
@@ -179,13 +202,21 @@ build_one() {
 # --- Main -------------------------------------------------------------------
 setup_local_repo
 
+# Full sync+upgrade once per run (not per package — a per-package -Sy/-Syu
+# is Arch's partial-upgrade anti-pattern, and upgrading inside the loop
+# would repeat a full system upgrade for every AUR build).
+echo "==> Syncing + upgrading system once before AUR builds"
+sudo pacman -Syu --noconfirm
+
 PACKAGES=(
     eww
     python-pywal16
     bibata-cursor-theme
     wlogout
     zed
-    brave-bin
+    helium-browser-bin
+    mpvpaper
+    vscode-langservers-extracted
 )
 
 for p in "${PACKAGES[@]}"; do

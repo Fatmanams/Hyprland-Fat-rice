@@ -1,0 +1,22 @@
+" osaka-jade preset - matches pywal16's colors-wal.vim template variables.
+" Sourced by config/nvim/init.lua via ~/.cache/wal/colors-wal.vim.
+" Palette ported from omarchy upstream (themes/osaka-jade/colors.toml).
+let background = "#111c18"
+let foreground = "#C1C497"
+let cursor     = "#C1C497"
+let color0 = "#23372B"
+let color1 = "#FF5345"
+let color2 = "#549e6a"
+let color3 = "#459451"
+let color4 = "#509475"
+let color5 = "#D2689C"
+let color6 = "#2DD5B7"
+let color7 = "#D6D5BC"
+let color8 = "#53685B"
+let color9 = "#db9f9c"
+let color10 = "#63b07a"
+let color11 = "#E5C736"
+let color12 = "#ACD4CF"
+let color13 = "#75bbb3"
+let color14 = "#8CD3CB"
+let color15 = "#F7E8B2"

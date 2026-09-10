@@ -1,9 +1,10 @@
-/* waybar style — pywal16-driven. Colors are CSS vars exported to
- * ~/.cache/wal/colors.css by `wal -i <wallpaper>`. The @import below
- * pulls them at runtime. If waybar renders with default colors, run
- * `wal -i ~/.config/hypr/wallpaper.jpg` and restart waybar.
+/* waybar style — pywal16-driven. Colors are @define-color values exported
+ * to ~/.cache/wal/colors-waybar.css by `wal -i <wallpaper>` (stock pywal16
+ * template). The @import below pulls them at runtime. If waybar renders
+ * with default colors, run `wal -i ~/.config/hypr/wallpaper.jpg` and
+ * restart waybar.
  */
-@import "../../.cache/wal/colors.css";
+@import "../../.cache/wal/colors-waybar.css";
 
 * {
     font-family: "JetBrainsMono Nerd Font";

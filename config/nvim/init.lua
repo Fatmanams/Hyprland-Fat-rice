@@ -1,21 +1,33 @@
 -- =============================================================================
 -- init.lua — Neovim config for the linux-rice.
 --
--- Single-file, minimal-by-design, no plugin manager. Pulls colors from
--- pywal16's cache (~/.cache/wal/colors.json) so that tree-sitter
--- highlighting + statusline match the rest of the rice (waybar, swaync,
--- rofi, eww, ghostty all get their palette from the same source).
+-- IDE profile managed by lazy.nvim, colors owned by pywal16.
+-- The rice's editors: Zed (GUI IDE, $EDITOR), Emacs (opt-in), and this —
+-- nvim as a real terminal IDE: treesitter highlighting, LSP, completion,
+-- telescope, file tree.
 --
--- This is intentionally NOT a full IDE setup — that's what Zed is for.
--- Use nvim for:
---   * quick edits from inside hydractl, scripts, terminal-only sessions
---   * sudoedit-style edits where you want syntax-aware highlighting
---   * git commit messages (~/.config/git/config sets editor=nvim if you
---     want that; we leave git's editor alone and let $EDITOR=zed --wait win)
+-- Editor plugin rule (this file is the rule's reference implementation):
+--   * lazy.nvim is the ONLY plugin manager here, specs inline below —
+--     keep this config single-file.
+--   * NO colorscheme/theme plugins. Color comes exclusively from
+--     ~/.cache/wal/colors-wal.vim: the sourced color0..15 drive every
+--     nvim_set_hl call, and plugin UIs (cmp/telescope/nvim-tree) link
+--     into those same groups so one palette owns the whole screen.
+--   * NO mason: LSP servers are plain $PATH binaries installed by
+--     scripts/00-base.sh (pyright, rust-analyzer, clangd, lua_ls,
+--     bashls, gopls, ts_ls) and 10-aur.sh (html, cssls, jsonls, eslint
+--     via vscode-langservers-extracted). nvim-lspconfig only wires them.
+--   * FATS/SUPER mode (F2) and the hand-rolled statusline are rice
+--     features — plugins must not replace them.
 --
--- If you want this to be more than a nice editor with pywal colors,
--- drop your plugin manager of choice in here. Lazy / packer / mini.deps
--- all work fine downstream of this file.
+-- First launch bootstraps lazy.nvim from upstream (clone pinned to the
+-- commit in the bootstrap block below — deliberately NOT a floating
+-- --branch=stable) and installs the specs — needs network, once. Every
+-- plugin version is pinned in config/nvim/lazy-lock.json (committed,
+-- installed to ~/.config/nvim/lazy-lock.json by 30-dotfiles.sh where
+-- lazy.nvim's default lockfile path finds it). Bumping a version means
+-- reviewing the upstream diff first — same rule as an AUR PKGBUILD
+-- bump (see AGENTS.md's editor plugin rule).
 -- =============================================================================
 
 -- ---- leader = space, vim-style -----------------------------------------------
@@ -42,6 +54,7 @@ vim.opt.showmode = false       -- mode shown in statusline below
 vim.opt.completeopt = { "menu", "menuone", "noselect" }
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
+vim.opt.hlsearch = true        -- highlight matches; <leader>/ clears them
 vim.opt.inccommand = "split"
 vim.opt.updatetime = 250
 vim.opt.timeoutlen = 400
@@ -49,8 +62,10 @@ vim.opt.clipboard = "unnamedplus"  -- wayland clipboard via wl-clipboard
 vim.opt.undofile = true
 vim.opt.swapfile = false
 vim.opt.backup = false
+vim.opt.mouse = "a"
+vim.opt.wildmode = { "longest", "full" }
 
--- ---- Filetype detection + tree-sitter-ish formatting ------------------------
+-- ---- Filetype detection ------------------------------------------------------
 vim.filetype.add({
   extension = {
     rs = "rust",
@@ -183,6 +198,19 @@ hl(0, "StatusLineNC", { bg = P.bg_alt, fg = P.comment })
 hl(0, "TabLine",      { bg = P.bg_alt, fg = P.comment })
 hl(0, "TabLineSel",   { bg = P.bg_alt, fg = P.fg, bold = true })
 hl(0, "TabLineFill",  { bg = P.bg_alt })
+hl(0, "NormalFloat",  { bg = P.bg_alt, fg = P.fg })
+hl(0, "FloatBorder",  { fg = P.border, bg = P.bg_alt })
+
+-- Plugin UI groups link into the palette above so the IDE layer follows
+-- wal without shipping theme plugins (rule: no colorscheme plugins).
+hl(0, "TelescopeNormal",   { link = "Normal" })
+hl(0, "TelescopeBorder",   { link = "FloatBorder" })
+hl(0, "TelescopeSelection",{ link = "CursorLine" })
+hl(0, "NvimTreeNormal",    { link = "Normal" })
+hl(0, "NvimTreeFolderName",{ fg = P.blue })
+hl(0, "CmpItemAbbrMatch",  { fg = P.blue, bold = true })
+hl(0, "CmpItemAbbrMatchFuzzy", { fg = P.blue, bold = true })
+hl(0, "CmpItemKind",       { fg = P.cyan })
 
 -- ---- Statusline (no plugin) ------------------------------------------------
 local function statusline()
@@ -199,26 +227,83 @@ local function statusline()
     t   = " TERM ",
   }
   local m = mode_map[vim.fn.mode()] or " " .. vim.fn.mode() .. " "
+  local km = (_G.rice_fats_mode) and " FATS " or " SUPER "
   local file = "%f"
   local mod  = "%m"
   local line = "  %l/%L:%c"
-  return m .. " " .. file .. mod .. line .. "%=" .. (wal_enabled and " [pywal] " or " [mocha] ") .. "%y "
+  return m .. km .. " " .. file .. mod .. line .. "%=" .. (wal_enabled and " [pywal] " or " [mocha] ") .. "%y "
 end
 
 vim.opt.statusline = "%!v:lua.statusline()"
 _G.statusline = statusline
 
 -- ---- Keymaps (sensible defaults + a couple of nicities) -------------------
-local map = function(lhs, rhs, desc)
-  vim.keymap.set("n", lhs, rhs, { desc = desc, silent = true })
+local map = function(lhs, rhs, desc, mode)
+  vim.keymap.set(mode or "n", lhs, rhs, { desc = desc, silent = true })
 end
 map("<leader>w", ":write<CR>",       "write")
 map("<leader>q", ":quit<CR>",        "quit")
 map("<leader>x", ":x<CR>",            "write+quit")
-map("<leader>e", ":Lexplore<CR>",    "file explorer (built-in netrw)")
+map("<leader>e", ":NvimTreeToggle<CR>", "file tree (nvim-tree)")
 map("<leader>/", ":nohlsearch<CR>",  "clear search")
 map("<leader>t", ":terminal<CR>",    "open terminal split")
-map("<Esc>",     "<C-\\><C-n>",      "exit terminal mode")  -- also in t-mode
+map("<leader>n", "<cmd>set number! relativenumber!<CR>", "toggle line numbers")
+map("<Esc>",     "<C-\\><C-n>",      "exit terminal mode", "t")
+
+-- Telescope
+map("<leader>ff", ":Telescope find_files<CR>", "find files")
+map("<leader>fg", ":Telescope live_grep<CR>",  "live grep")
+map("<leader>fb", ":Telescope buffers<CR>",    "buffers")
+
+-- Buffer nav
+map("<S-h>", ":bprev<CR>", "previous buffer")
+map("<S-l>", ":bnext<CR>", "next buffer")
+
+-- ---- fats mode <-> supermode (F2) ------------------------------------------
+-- fats mode is this file's DEFAULT (Zed also starts with vim mode off):
+-- supermode — plain vim modal editing — is what F2 switches you into.
+-- fats mode is for people who hate modes: nvim stays in Insert
+-- "permanently" — Esc stops leaving it (mapped to a no-op) and every
+-- buffer re-enters Insert when you land on it. Ctrl-O still runs one
+-- Normal command and drops you back. The Ctrl-S save / Ctrl-Z undo maps
+-- give it the GUI-app feel (Ctrl-C/Ctrl-V already work via
+-- clipboard=unnamedplus above). The active mode shows in the statusline
+-- (FATS / SUPER), driven by the _G.rice_fats_mode flag.
+--
+-- NOTE: this is hand-rolled because Neovim REMOVED Vim's 'insertmode'
+-- option (setting it dies with E519 "Option not supported" — verified on
+-- nvim 0.11). The Esc-noop + startinsert-on-BufEnter pair below is the
+-- same user-facing contract, not a fallback hack. The startinsert hook
+-- skips non-file buffers (telescope prompts, nvim-tree, terminal) — the
+-- re-enter behavior is only meaningful where you can type text.
+local fats_group = vim.api.nvim_create_augroup("RiceFatsMode", { clear = true })
+_G.rice_fats_mode = false
+_G.rice_toggle_fats = function()
+  _G.rice_fats_mode = not _G.rice_fats_mode
+  if _G.rice_fats_mode then
+    vim.keymap.set("i", "<Esc>", "<Nop>", { desc = "fats mode: stay in Insert" })
+    vim.api.nvim_create_autocmd("BufEnter", {
+      group = fats_group,
+      callback = function()
+        if vim.bo.buftype == "" then vim.cmd("startinsert") end
+      end,
+    })
+    if vim.bo.buftype == "" then vim.cmd("startinsert") end
+    print("fats mode — always Insert; Ctrl-O one-shot Normal, F2 back to supermode")
+  else
+    pcall(vim.keymap.del, "i", "<Esc>")
+    vim.api.nvim_clear_autocmds({ group = fats_group })
+    print("supermode — plain modal vim")
+  end
+end
+map("<F2>",  _G.rice_toggle_fats, "toggle fats/supermode", { "n", "i" })
+-- Start in fats mode: call the toggle itself rather than only setting
+-- _G.rice_fats_mode = true — the Esc-noop map and the startinsert autocmd
+-- only exist after this function has run, so flipping the bare flag would
+-- give the FATS label with supermode behavior.
+_G.rice_toggle_fats()
+map("<C-s>", "<C-o>:write<CR>", "save (fats mode; harmless in normal Insert)", "i")
+map("<C-z>", "<C-o>u", "undo from Insert (fats mode)", "i")
 
 -- Window nav like Hyprland (mod + h/j/k/l)
 map("<C-h>", "<C-w>h", "window left")
@@ -231,4 +316,122 @@ vim.opt.autoread = true
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
   pattern = "*",
   command = "checktime",
+})
+
+-- ---- Diagnostics -------------------------------------------------------------
+vim.diagnostic.config({
+  virtual_text = true,
+  signs = true,
+  underline = true,
+  update_in_insert = false,
+  severity_sort = true,
+})
+-- Plain-letter signs: readable without a nerd-font fallback dance.
+for _, s in ipairs({ { "Error", "E" }, { "Warn", "W" }, { "Hint", "H" }, { "Info", "I" } }) do
+  vim.fn.sign_define("DiagnosticSign" .. s[1], { text = s[2], texthl = "DiagnosticSign" .. s[1] })
+end
+
+-- ---- IDE plugins (lazy.nvim — see the editor plugin rule in this header) ----
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
+if not (vim.uv or vim.loop).fs_stat(lazypath) then
+  vim.fn.system({
+    "git", "clone", "--filter=blob:none",
+    "https://github.com/folke/lazy.nvim.git", lazypath,
+  })
+  -- Pinned, not floating: stable-branch tip at lock time (v11.17.5).
+  -- Bumping lazy.nvim itself = review folke/lazy.nvim diff, update this SHA.
+  vim.fn.system({
+    "git", "-C", lazypath, "checkout",
+    "85c7ff3711b730b4030d03144f6db6375044ae82",
+  })
+end
+vim.opt.rtp:prepend(lazypath)
+
+require("lazy").setup({
+  -- File tree (hijacks netrw; <leader>e toggles)
+  { "nvim-tree/nvim-tree.lua", opts = {} },
+
+  -- Fuzzy finder (uses ripgrep/fd from 00-base.sh when present)
+  {
+    "nvim-telescope/telescope.nvim",
+    dependencies = { "nvim-lua/plenary.nvim" },
+    opts = {},
+  },
+
+  -- Syntax trees. Pinned to the frozen legacy `master` branch on
+  -- purpose: the rewritten `main` branch needs per-plugin migration
+  -- (vim.treesitter autocmds) — a deliberate follow-up, not drift.
+  {
+    "nvim-treesitter/nvim-treesitter",
+    branch = "master",
+    build = ":TSUpdate",
+    config = function()
+      require("nvim-treesitter.configs").setup({
+        ensure_installed = {
+          "python", "c", "cpp", "lua", "java", "rust", "json",
+          "toml", "yaml", "markdown", "bash", "vim", "vimdoc",
+        },
+        highlight = { enable = true },
+      })
+    end,
+  },
+
+  -- Completion
+  {
+    "hrsh7th/nvim-cmp",
+    dependencies = {
+      "hrsh7th/cmp-nvim-lsp",
+      "hrsh7th/cmp-buffer",
+      "L3MON4D3/LuaSnip",
+      "saadparwaiz1/cmp_luasnip",
+    },
+    config = function()
+      local cmp = require("cmp")
+      cmp.setup({
+        snippet = {
+          expand = function(args) require("luasnip").lsp_expand(args.body) end,
+        },
+        mapping = cmp.mapping.preset.insert({
+          ["<C-Space>"] = cmp.mapping.complete(),
+          ["<CR>"]      = cmp.mapping.confirm({ select = true }),
+          ["<C-e>"]     = cmp.mapping.abort(),
+          ["<Tab>"]     = cmp.mapping.select_next_item(),
+          ["<S-Tab>"]   = cmp.mapping.select_prev_item(),
+        }),
+        sources = {
+          { name = "nvim_lsp" },
+          { name = "luasnip" },
+          { name = "buffer" },
+        },
+      })
+    end,
+  },
+
+  -- LSP wiring. Servers come from 00-base.sh (pacman) and 10-aur.sh
+  -- (vscode-langservers-extracted) — nvim-lspconfig just connects them;
+  -- no mason, nothing downloaded into nvim's data dir.
+  {
+    "neovim/nvim-lspconfig",
+    dependencies = { "hrsh7th/cmp-nvim-lsp" },
+    config = function()
+      local capabilities = require("cmp_nvim_lsp").default_capabilities()
+      local lspconfig = require("lspconfig")
+      -- pacman (00-base.sh step 4):
+      for _, name in ipairs({
+        "pyright", "rust_analyzer", "clangd", "lua_ls",
+        "bashls", "gopls", "ts_ls",
+      }) do
+        lspconfig[name].setup({ capabilities = capabilities })
+      end
+      -- AUR vscode-langservers-extracted (10-aur.sh):
+      for _, name in ipairs({ "html", "cssls", "jsonls", "eslint" }) do
+        lspconfig[name].setup({ capabilities = capabilities })
+      end
+      -- This repo is full of `vim.` calls; keep lua_ls quiet about them.
+      lspconfig.lua_ls.setup({
+        capabilities = capabilities,
+        settings = { Lua = { diagnostics = { globals = { "vim" } } } },
+      })
+    end,
+  },
 })
