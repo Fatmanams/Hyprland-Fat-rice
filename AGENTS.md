@@ -11,11 +11,27 @@ Scripts run on Arch; do not assume Windows tools exist on the target.
 
 ---
 
+## Package security and provenance policy
+
+**No `curl | bash` installers, ever** — including upstream one-liner
+install scripts. Every package addition or removal must include a
+mandatory up-front AUR audit: the pull request description must list
+every AUR-only dependency before the build review begins.
+
+**Official repos first when no performance reason exists to compile
+instead.** Packages selected for source installation use the reviewed
+pipeline in `scripts/10-aur.sh`: clone the source, print and read the
+PKGBUILD in full, scan it for suspicious commands and URLs, require
+explicit confirmation, build with plain `makepkg` (no `-i`), and install
+the reviewed result through the local repository. Static assets with
+nothing to compile use a direct `git clone` into the documented path;
+they do not get a manufactured PKGBUILD.
+
 ## Performance compilation policy
 
-The only package policy is: **compile a package from source when the
-result is expected to improve performance for this machine; otherwise
-use the simplest reliable distribution method.**
+Compile a package from source only when the result is expected to
+improve performance for this machine; otherwise use the simplest
+reliable distribution method.
 
 Performance claims should be concrete and local to the workload: CPU
 architecture flags, parallel builds, native Rust targets, or another

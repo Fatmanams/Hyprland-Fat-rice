@@ -4,7 +4,8 @@
 
 **A reviewable Hyprland dotfiles + installer set for Arch Linux.**
 Single monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
-Performance-first builds · source compilation only when it is expected to help
+No `curl | bash` installers · performance-first builds · source compilation
+only when it is expected to help
 
 [Components](#whats-in-this-rice) —
 [Source-built packages](#source-built-package-inventory) —
@@ -37,10 +38,11 @@ Performance-first builds · source compilation only when it is expected to help
 ---
 
 A personal Hyprland rice for a single-monitor AMD/Intel Arch Linux box.
-Install is staged into reviewable scripts. Packages are compiled from
-source only when a measurable performance benefit is expected; otherwise
-the simplest reliable package source is used. The packages this rice
-does compile use CPU-native flags (`-march=native`).
+Install is staged into reviewable scripts with no `curl | bash`
+installers. Packages are compiled from source only when a measurable
+performance benefit is expected; otherwise the simplest reliable package
+source is used. The packages this rice does compile use CPU-native flags
+(`-march=native`).
 
 ## What's in this rice
 
