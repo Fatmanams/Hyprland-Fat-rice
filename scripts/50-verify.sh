@@ -24,15 +24,16 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 HYPR_CFG="$HOME/.config/hypr"
 
 echo "==> [1/8] First-boot TODOs cleared"
-# hyprland.conf / hyprpaper.conf ship with literal "@@ TODO @@"
-# placeholders (monitor name, wallpaper path) the user must replace
-# after first boot. Any leftover means the stopgap is still live.
-todo_hits=$(grep -Rn '@@ TODO @@' "$HYPR_CFG/hyprland.conf" "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
-if [[ -z "$todo_hits" ]]; then
-    pass "no '@@ TODO @@' placeholders remain in installed hypr configs"
+# The explanatory comments retain TODO text permanently. Check only the
+# active stopgap directives the user must replace after first boot.
+monitor_stopgap=$(grep -E '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf" 2>/dev/null || true)
+wallpaper_stopgap=$(grep -E '^wallpaper = eDP-1,[[:space:]]' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
+if [[ -z "$monitor_stopgap" && -z "$wallpaper_stopgap" ]]; then
+    pass "monitor and wallpaper stopgap directives were replaced"
 else
-    fail "unresolved '@@ TODO @@' placeholders:"
-    echo "$todo_hits" | sed 's/^/        /'
+    fail "active first-boot stopgap directives remain:"
+    [[ -n "$monitor_stopgap" ]] && echo "        $monitor_stopgap"
+    [[ -n "$wallpaper_stopgap" ]] && echo "        $wallpaper_stopgap"
 fi
 
 echo "==> [2/8] GPU driver sanity"

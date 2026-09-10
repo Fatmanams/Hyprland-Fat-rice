@@ -275,7 +275,7 @@ if [[ -z "$CPUPOWER_CONF" ]]; then
     echo "       Check 'cat /usr/lib/systemd/scripts/cpupower' for the source line"
     echo "       and set the governor manually: cpupower frequency-set -g performance"
 else
-    sudo tee "$CPUPOWER_CONF" >/dev/null <<EOF
+    sudo tee "$CPUPOWER_CONF" >/dev/null <<'EOF'
 # Set by linux-rice 00-base.sh. Restore the stock default by deleting the
 # `governor=` line below and re-running: sudo systemctl restart cpupower
 governor='performance'
