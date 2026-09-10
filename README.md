@@ -71,6 +71,8 @@ source is used. The packages this rice does compile use CPU-native flags
 | HTML/CSS/JSON LSP | vscode-langservers-extracted | **AUR — makepkg'd** | the only LSP not in official repos |
 | Browser          | helium-browser       | **AUR — helium-browser-bin** | default; xdg-mime default for http(s)/ftp/html |
 | Media player     | vlc                  | pacman (extra)          | default for video/audio MIME types; ships `config/vlc/vlcrc` (deliberately minimal — decoding and snapshot dir left on VLC's defaults, see file comments) |
+| Screen recorder  | obs-studio            | pacman (extra)          | open-source Wayland-capable recording and streaming; SUPER+SHIFT+O |
+| Audio recorder   | audacity              | pacman (extra)          | GPL audio waveform recorder/editor; SUPER+SHIFT+U |
 | URL resolver     | yt-dlp               | pacman (extra)          | YouTube et al. -> direct stream URL for vlc-open (SUPER+SHIFT+M); vlc's own youtube.lua is NOT trusted (breaks on every YT player change) |
 | Live resolver    | streamlink           | pacman (extra)          | Twitch/live streams; drives VLC itself via `--player vlc` |
 | TUI file mgr     | yazi                 | pacman (extra)          | SUPER+SHIFT+E |

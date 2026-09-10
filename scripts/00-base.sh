@@ -120,7 +120,7 @@ sudo pacman -S --needed --noconfirm \
     ripgrep fd zoxide chafa \
     poppler \
     yazi thunar tumbler thunar-archive-plugin thunar-volman gvfs \
-    vlc \
+    vlc obs-studio audacity \
     yt-dlp streamlink \
     bitwarden \
     bluez bluez-utils blueman \

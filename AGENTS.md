@@ -138,6 +138,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── isync/                      Maildir synchronization config
     ├── msmtp/                      SMTP sending config
     ├── ai-tools/                   terminal AI tool launch commands
+    ├── obs-studio + audacity       official-repo recording applications
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}
@@ -241,6 +242,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
 | Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
+| Change recording applications                | `scripts/00-base.sh` + `config/hypr/keybinds-extra.conf` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
 | Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |
 | Edit gaming HUD defaults                      | `config/MangoHud/MangoHud.conf`                              |
