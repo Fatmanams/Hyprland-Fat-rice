@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 10-aur.sh — AUR-only packages, built per policy rule #3:
+# 10-aur.sh — source-built packages using the reviewed AUR workflow:
 #   * Pull each AUR repo by git clone (no AUR helper).
 #   * Print the full PKGBUILD to stdout for human review (read it!).
 #   * Wait for explicit confirmation before building.

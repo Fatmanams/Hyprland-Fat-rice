@@ -153,7 +153,7 @@ echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"
 #   typescript-language-server 5.1.3 (extra/any)
 # HTML/CSS/JSON/ESLint servers (vscode-langservers-extracted) are NOT in
 # official repos — AUR-only, so they go through 10-aur.sh's reviewed
-# pipeline per policy rule #3, not here.
+# reviewed source-build pipeline, not here.
 sudo pacman -S --needed --noconfirm \
     pyright \
     rust-analyzer \

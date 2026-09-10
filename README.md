@@ -4,10 +4,10 @@
 
 **A reviewable Hyprland dotfiles + installer set for Arch Linux.**
 Single monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
-No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU-native
+Performance-first builds · source compilation only when it is expected to help
 
 [Components](#whats-in-this-rice) —
-[AUR audit](#aur-only-packages--full-up-front-audit-policy-rule-5) —
+[Source-built packages](#source-built-package-inventory) —
 [Install](#installation-steps) —
 [First-boot TODOs](#mandatory-first-boot-todos) —
 [Tree](#tree)
@@ -19,7 +19,7 @@ No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU
 ## Contents
 
 - [What's in this rice](#whats-in-this-rice)
-- [AUR-only packages — full up-front audit](#aur-only-packages--full-up-front-audit-policy-rule-5)
+- [Source-built package inventory](#source-built-package-inventory)
 - [Themes (wallpaper mode + 4 presets)](#themes-wallpaper-mode--4-presets)
 - [GPU compatibility](#gpu-compatibility-nvidia--intel--amd-same-config)
 - [Step 0: installing Arch itself](#step-0-installing-arch-itself-archinstall-from-the-iso)
@@ -29,7 +29,7 @@ No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU
 - [Snapshots (btrfs / ext4)](#snapshots-btrfs---snapper-anything-else---timeshift-rsync)
 - [Code editor setup (Zed, Neovim, Ghostty)](#code-editor-setup-zed-neovim-ghostty)
 - [Gaming launch-option recipes](#steam--wine--proton-launch-option-recipes-gaming-set)
-- [Package policy](#package-policy-kept-reference-only-here-so-the-rules-are-visible)
+- [Performance compilation policy](#performance-compilation-policy)
 - [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
 - [Tree](#tree)
 - [License](#license)
@@ -37,11 +37,10 @@ No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU
 ---
 
 A personal Hyprland rice for a single-monitor AMD/Intel Arch Linux box.
-Install is staged into reviewable scripts; AUR-only packages go through
-PKGBUILD review → plain `makepkg` → `repo-add` → install from local repo
-exactly. AUR helpers (paru/yay) are permitted by policy but the reviewed
-pipeline is what the scripts use; `curl | bash` installers are banned,
-and everything the rice compiles builds CPU-native (`-march=native`).
+Install is staged into reviewable scripts. Packages are compiled from
+source only when a measurable performance benefit is expected; otherwise
+the simplest reliable package source is used. The packages this rice
+does compile use CPU-native flags (`-march=native`).
 
 ## What's in this rice
 
@@ -89,10 +88,11 @@ and everything the rice compiles builds CPU-native (`-march=native`).
 
 ---
 
-## AUR-only packages — full up-front audit (policy rule #5)
+## Source-built package inventory
 
-These are the **only** packages built from AUR. Anything else is in
-official Arch repos and installed by `scripts/00-base.sh`.
+These are the packages currently handled by the reviewed source-build
+workflow. Other packages use the normal distribution install path unless
+there is a documented performance reason to add them here.
 
 | Package                | AUR URL                                  | Build notes                                                      |
 |------------------------|------------------------------------------|------------------------------------------------------------------|
@@ -316,10 +316,10 @@ chmod +x scripts/*.sh
 
 # 2. AUR builds — reviewed PKGBUILD, plain makepkg (build only),
 #    repo-add into your local repo at /var/cache/pacman/localrepo,
-#    then pacman -S from there. No AUR helpers. Pause+review each.
+#    then pacman -S from there. Pause+review each source build.
 ./scripts/10-aur.sh
 
-# 3. SDDM theme — bare git clone per policy rule #4. Snapshots the
+# 3. SDDM theme — bare git clone for the static asset. Snapshots the
 #    old SDDM state first, then clones Keyitdev's sddm-astronaut-theme
 #    into /usr/share/sddm/themes/sddm-astronaut-theme and addresses
 #    Current= in a new conf.d/10-theme.conf.
@@ -668,24 +668,19 @@ CPU/GPU stats, RAM, VRAM, swap, histogram, and is toggleable with
 
 ---
 
-## Package policy (kept reference-only here so the rules are visible)
+## Performance compilation policy
 
-1. **Official repos first.** If it's in `pacman -S`, that's where it comes from.
-2. **No `curl | bash` installers** anywhere, including upstream one-liner
-   install scripts. AUR helpers (paru/yay) are tolerated per user
-   policy, but the scripts keep the reviewed pipeline below — the
-   human-review step is the point.
-3. **AUR-only packages**: pull PKGBUILD, print it, **read it in full**
-   (look for `curl | bash`, post_registration wget, suspicious source
-   URLs), build with plain `makepkg` (no `-si`, build only), `repo-add`
-   the resulting `.pkg.tar.zst` to a local repo, then `pacman -S` from
-   that repo. `scripts/10-aur.sh` implements exactly this.
-4. **Static-asset/no-build repos** (like sddm-astronaut-theme): plain
-   `git clone` straight from upstream into the documented install path,
-   no PKGBUILD wrapper manufactured. `scripts/20-sddm.sh` does this.
-5. **All AUR-only items listed up-front** so the review/build step is
-   visible before any build starts. The table at the top of this README
-   is the rule-5 audit for this build.
+The only package policy is: **compile from source when the result is
+expected to improve performance for this machine; otherwise use the
+simplest reliable distribution method.**
+
+The expected benefit must be concrete and workload-specific, such as
+native CPU flags, parallel compilation, or a native Rust target. AUR
+availability alone is not a reason to compile, and reliable prebuilt
+packages should not be replaced without an expected performance gain.
+The current scripts retain a reviewed AUR/local-repository workflow for
+the packages this rice chooses to compile, but that workflow is an
+implementation choice rather than an additional policy requirement.
 
 ### Build-speed tweaks (applied by `scripts/00-base.sh`)
 

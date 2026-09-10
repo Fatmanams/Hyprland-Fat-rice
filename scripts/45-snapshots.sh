@@ -12,8 +12,8 @@
 #             BTRFS mode would just be snapper-with-a-GUI — on btrfs you
 #             already have the native tool above.)
 #
-# Both are official-repo (extra) packages — package policy rule 1,
-# nothing AUR. This script is the single place the btrfs-vs-ext4
+# Both are distribution packages. This script is the single place the
+# btrfs-vs-ext4
 # question is answered; if that policy ever changes, change both
 # branches here in lockstep.
 #
