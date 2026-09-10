@@ -141,10 +141,19 @@ installed AI coding tools:
 - `SUPER+SHIFT+I` — Kilo Code (`kilo`)
 
 These tools are intentionally not installed by the rice. Set the
-`$claude_code`, `$deepseek_harness`, or `$kilo_code` variables in
-`~/.config/hypr/hyprland.conf` if a local installation uses a different
+`$claude_command`, `$deepseek_command`, or `$kilo_command` variables in
+`~/.config/hypr/keybinds-extra.conf` if a local installation uses a different
 command name. API keys and authentication remain in each tool's own
 credential store and are not committed here.
+
+### Keybind customization
+
+All user-editable launch keys and command names are grouped at the top
+of `config/hypr/keybinds-extra.conf`, which is copied to
+`~/.config/hypr/keybinds-extra.conf`. Change a `$key_*` value to move a
+shortcut or a `$_command` value to match a locally installed executable.
+Reload with `hyprctl reload` or `SUPER+SHIFT+C`. The main
+`hyprland.conf` keeps the complete categorized reference list.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"

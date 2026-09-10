@@ -1,3 +1,5 @@
+# Copy to ~/.config/vdirsyncer/config and fill in a separate Calendar OAuth
+# client. Never commit the real client secret or token file.
 [general]
 status_path = "~/.vdirsyncer/status/"
 

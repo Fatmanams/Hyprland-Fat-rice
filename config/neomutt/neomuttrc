@@ -1,3 +1,5 @@
+# Main Neomutt config. Keep real account files local; only .example files
+# belong in this repository. Colors come from the active pywal preset.
 source ~/.cache/wal/colors-neomutt.muttrc
 set mbox_type = Maildir
 set folder = ~/Mail

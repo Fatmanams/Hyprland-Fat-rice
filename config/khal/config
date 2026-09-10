@@ -1,3 +1,5 @@
+# ikhal reads the filesystem calendar populated by vdirsyncer.
+# Named urwid colors inherit the terminal's pywal-repainted ANSI palette.
 [calendars]
 [[google]]
 path = ~/.calendars/google/*

@@ -112,6 +112,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 └── config/
     ├── hypr/
     │   ├── hyprland.conf       compositor config (monitor= is a STOPGAP TODO — see notes)
+    │   ├── keybinds-extra.conf  user-editable launch keys and command assignments
     │   ├── hyprpaper.conf      static wallpaper FALLBACK config (mpvpaper is the default)
     │   ├── hypridle.conf       idle / lock / suspend listeners
     │   ├── switch-theme.sh     preset palette switcher (SUPER+SHIFT+T cycles)
@@ -228,7 +229,7 @@ coverage if it isn't already (CI catches it otherwise).
 
 | You want to...                                | File to edit                                                 |
 |-----------------------------------------------|--------------------------------------------------------------|
-| Change keybinds                               | `config/hypr/hyprland.conf`                                  |
+| Change keybinds                               | `config/hypr/keybinds-extra.conf` for launch shortcuts; `hyprland.conf` for compositor/workspace bindings |
 | Add/remove a pywal-driven tool                | `config/hypr/hyprland.conf` (exec-once) + `config/<tool>/`    |
 | Change cursor theme or size                   | `config/hypr/hyprland.conf` (`env = XCURSOR_*`, `HYPRCURSOR_*`) |
 | Switch from ghostty to kitty / alacritty      | `config/hypr/hyprland.conf` (`$terminal = ...`)              |

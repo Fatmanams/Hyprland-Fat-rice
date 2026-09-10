@@ -1,3 +1,5 @@
+# Mail is stored under ~/Mail and synchronized manually with `mbsync -a`.
+# OAuth tokens and password commands are intentionally kept outside git.
 IMAPAccount gmail
 Host imap.gmail.com
 User you@gmail.com
