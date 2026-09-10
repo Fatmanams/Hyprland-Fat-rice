@@ -3,7 +3,7 @@
 # linux-rice
 
 **A reviewable Hyprland dotfiles + installer set for Arch Linux.**
-Single monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
+Multi-monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
 No `curl | bash` installers · performance-first builds · source compilation
 only when it is expected to help
 
@@ -37,7 +37,8 @@ only when it is expected to help
 
 ---
 
-A personal Hyprland rice for a single-monitor AMD/Intel Arch Linux box.
+A personal Hyprland rice for AMD/Intel/NVIDIA Arch Linux desktops,
+including laptops, docks, and multi-monitor setups.
 Install is staged into reviewable scripts with no `curl | bash`
 installers. Packages are compiled from source only when a measurable
 performance benefit is expected; otherwise the simplest reliable package
@@ -422,20 +423,22 @@ You can run each script at most once. Reading them first is the point.
 
 Before the rice looks right:
 
-1. **Monitor name.** `hyprland.conf` ships with:
+1. **Monitor layout (optional for basic multi-monitor use).**
+   `hyprland.conf` ships with:
    ```
    monitor=,preferred,auto,1
    ```
-   Auto-detect is a **stopgap** per the upstream gotcha note. After your
-   first boot, run:
+   The wildcard applies the preferred mode to every connected output and
+   supports multiple monitors without hardcoded names. For custom modes,
+   positions, scale, or rotation, run:
    ```
    hyprctl monitors
    ```
-   and **edit `~/.config/hypr/hyprland.conf`'s monitor= line** with the
-   actual monitor name, mode, and refresh rate. Example for a 1440p/144Hz
-   DisplayPort display:
+   and replace the wildcard with one explicit `monitor=` line per output.
+   Example for a laptop plus a 1440p/144Hz DisplayPort display:
    ```
-   monitor=DP-1, 2560x1440@144, 0x0, 1
+   monitor=eDP-1, 1920x1080@60, 0x0, 1
+   monitor=DP-1, 2560x1440@144, 1920x0, 1
    ```
 
 2. **Wallpaper.** Drop a JPG at `~/.config/hypr/wallpaper.jpg`. This is
@@ -450,15 +453,16 @@ Before the rice looks right:
    rofi) for their color palettes.
 
    **Animated wallpaper (mpvpaper, the default):** also drop a looping
-   video at `~/.config/hypr/wallpaper.mp4`, and in `hyprland.conf`
-   replace `eDP-1` in the mpvpaper exec-once line with your monitor name
-   from `hyprctl monitors`. If you'd rather have a static wallpaper,
+   video at `~/.config/hypr/wallpaper.mp4`; the helper discovers every
+   connected output and starts one wallpaper instance per monitor. If
+   you'd rather have a static wallpaper,
    comment the mpvpaper line and uncomment the `exec-once = hyprpaper`
    line just below it.
 
-3. **Same edit in `~/.config/hypr/hyprpaper.conf`** — set the
-   `wallpaper = <monitor>, ~/.config/hypr/wallpaper.jpg` line's monitor
-   name to match `hyprctl monitors`.
+3. **Static wallpaper (optional per-monitor override).**
+   `hyprpaper.conf` uses `wallpaper = , ...` to cover every output. Replace
+   it with one `wallpaper = <monitor>, ...` line per monitor if displays
+   need different images.
 
 4. **AppArmor (only if you want the "shields" actually on).** The
    `apparmor` package is installed by `00-base.sh` but the LSM is INERT
@@ -876,8 +880,9 @@ linux-rice/
 │   └── 50-verify.sh                        read-only post-deploy health check (PASS/FAIL, never fixes)
 └── config/
     ├── hypr/
-    │   ├── hyprland.conf                   compositor config (monitor= TODO!)
-    │   ├── hyprpaper.conf                  static wallpaper FALLBACK (mpvpaper is default)
+    │   ├── hyprland.conf                   compositor config (multi-monitor wildcard)
+    │   ├── hyprpaper.conf                  static wallpaper FALLBACK (all outputs)
+    │   ├── start-mpvpaper.sh               one animated wallpaper process per output
     │   ├── hypridle.conf                   idle / lock / suspend listeners
     │   ├── keybinds-extra.conf             empty by default; user-local bind additions
     │   ├── switch-theme.sh                 preset palette switcher (SUPER+SHIFT+T cycles)

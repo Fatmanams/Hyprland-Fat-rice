@@ -23,17 +23,15 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 
 HYPR_CFG="$HOME/.config/hypr"
 
-echo "==> [1/8] First-boot TODOs cleared"
-# The explanatory comments retain TODO text permanently. Check only the
-# active stopgap directives the user must replace after first boot.
-monitor_stopgap=$(grep -E '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf" 2>/dev/null || true)
-wallpaper_stopgap=$(grep -E '^wallpaper = eDP-1,[[:space:]]' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
-if [[ -z "$monitor_stopgap" && -z "$wallpaper_stopgap" ]]; then
-    pass "monitor and wallpaper stopgap directives were replaced"
+echo "==> [1/8] Monitor layout"
+# The wildcard layout is valid for multi-monitor systems. Explicit layouts
+# are also valid when users need per-output mode, position, scale, or rotation.
+monitor_layout=$(grep -E '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf" 2>/dev/null || true)
+wallpaper_layout=$(grep -E '^wallpaper = ,[[:space:]]' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
+if [[ -n "$monitor_layout" || -n "$wallpaper_layout" ]]; then
+    pass "multi-monitor wildcard layout is active"
 else
-    fail "active first-boot stopgap directives remain:"
-    [[ -n "$monitor_stopgap" ]] && echo "        $monitor_stopgap"
-    [[ -n "$wallpaper_stopgap" ]] && echo "        $wallpaper_stopgap"
+    pass "explicit monitor and wallpaper layouts are configured"
 fi
 
 echo "==> [2/8] GPU driver sanity"

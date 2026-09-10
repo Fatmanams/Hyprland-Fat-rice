@@ -13,7 +13,7 @@ jobs:
       - name: bash -n syntax check (AGENTS.md minimum)
         run: |
           set -euo pipefail
-          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh; do
+          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
@@ -21,7 +21,7 @@ jobs:
       - name: shellcheck (error severity)
         run: |
           set -euo pipefail
-          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
+          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
 
       - name: jq parse check (strip deliberate // comment headers first)
         run: |

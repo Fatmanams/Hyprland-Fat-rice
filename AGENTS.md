@@ -6,7 +6,7 @@ is the contract the agent must follow.
 
 This rice is authored from a Windows box (file paths in commit messages
 / `git status` may show `D:\linux rice`) and pushed via `gh CLI`. It
-targets **Arch Linux** (single-monitor, GPU-agnostic NVIDIA/Intel/AMD).
+targets **Arch Linux** (multi-monitor, GPU-agnostic NVIDIA/Intel/AMD).
 Scripts run on Arch; do not assume Windows tools exist on the target.
 
 ---
@@ -112,9 +112,10 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │                              btrfs/snapper vs other/Timeshift branch
 └── config/
     ├── hypr/
-    │   ├── hyprland.conf       compositor config (monitor= is a STOPGAP TODO — see notes)
+    │       ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
     │   ├── keybinds-extra.conf  user-editable launch keys and command assignments
-    │   ├── hyprpaper.conf      static wallpaper FALLBACK config (mpvpaper is the default)
+    │       ├── hyprpaper.conf      static wallpaper FALLBACK config (all outputs by default)
+    ├── start-mpvpaper.sh   per-output animated wallpaper launcher
     │   ├── hypridle.conf       idle / lock / suspend listeners
     │   ├── switch-theme.sh     preset palette switcher (SUPER+SHIFT+T cycles)
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/   pre-generated pywal-format palettes
@@ -211,7 +212,8 @@ by `.github/workflows/lint.yml`):
    including the non-scripts .sh files it names explicitly):
    ```
    bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
-       config/vlc/vlc-open config/ghostty/ghostty-theme.sh
+       config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
+       config/ghostty/ghostty-theme.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -371,22 +373,21 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
 
 ## Monitor + wallpaper contract (must NOT regress)
 
-- `config/hypr/hyprland.conf` ships with `monitor=,preferred,auto,1`
-  — this is a **documented stopgap**, not the committed config. **Do
-  not** commit a "real" value; the user is expected to run
-  `hyprctl monitors` after first boot and replace it. The README's
-  "Mandatory first-boot TODOs" section is the contract.
-- `config/hypr/hyprpaper.conf` ships with `wallpaper = eDP-1, ...`
-  where `eDP-1` is a placeholder. Same deal — user replaces with the
-  real monitor name. **Don't** run `hyprctl monitors` from a script to
-  auto-fill the line; the stopgap is intentional.
+- `config/hypr/hyprland.conf` ships with `monitor=,preferred,auto,1`,
+  which applies the preferred mode to every connected output. Users may
+  replace it with one explicit `monitor=` line per output for custom
+  positions, modes, scale, or rotation. Do not hardcode a
+  machine-specific layout in the repository.
+- `config/hypr/hyprpaper.conf` ships with `wallpaper = , ...`, applying one
+  image to every output. Users may replace it with per-monitor wallpaper
+  lines; do not hardcode machine-specific output names.
 - The wallpaper path `~/.config/hypr/wallpaper.jpg` is a TODO the user
   fills in after `30-dotfiles.sh` runs. **Don't** vendor a wallpaper
   binary into this repo.
-- Animated wallpaper: `hyprland.conf` starts **mpvpaper** (AUR) pointed
-  at `~/.config/hypr/wallpaper.mp4` — also a user-side TODO, same rules:
-  `eDP-1` in the mpvpaper line is a placeholder for the real monitor
-  name, **don't** auto-fill it, **don't** vendor a video binary.
+- Animated wallpaper: `hyprland.conf` starts `start-mpvpaper.sh`, which
+  discovers connected outputs at runtime and launches one **mpvpaper**
+  (AUR) process per output for `~/.config/hypr/wallpaper.mp4`. The video is
+  a user-side TODO; do not vendor it.
   `hyprpaper` stays installed and wired as the commented fallback line;
   `hyprpaper.conf` is the static-fallback config. Keep both paths
   working — swapping between them must stay a one-line comment toggle.
