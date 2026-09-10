@@ -36,15 +36,15 @@ else
 fi
 
 echo "==> [2/8] GPU driver sanity"
-# Same lspci detection 00-base.sh uses at install time, INCLUDING the
-# head -n1 (first VGA controller only) — so on hybrid/Optimus systems
-# verify and install always agree on which controller counts.
+# Same lspci controller classes 00-base.sh uses at install time. Keep all
+# controllers so hybrid/Optimus systems are verified against the same
+# vendor choice that the installer made.
 # Cross-checked against installed packages so a half-finished driver
 # swap is caught. NVIDIA hardware does NOT imply the nvidia package:
 # 00-base.sh's GPU step lets the user decline the proprietary driver
 # and fall through to mesa — a supported outcome, so that combination
 # is a PASS here, not a FAIL.
-gpu_line=$(lspci -nn | grep -Ei ' VGA compatible controller: ' | head -n1 || true)
+gpu_line=$(lspci -nn | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
 if [[ -z "$gpu_line" ]]; then
     fail "no VGA controller detected by lspci"
 else
@@ -95,7 +95,7 @@ echo "==> [6/8] SDDM rollback snapshot exists"
 # to a normal user, so without sudo we can only say "cannot check"
 # rather than guess — rerun with sudo to verify properly.
 if sudo -n true 2>/dev/null; then
-    if sudo -n sh -c 'compgen -G "/root/sddm-snap.*" >/dev/null'; then
+    if sudo -n bash -c 'compgen -G "/root/sddm-snap.*" >/dev/null'; then
         pass "at least one /root/sddm-snap.* snapshot exists"
     else
         fail "no /root/sddm-snap.* snapshot found (20-sddm.sh may not have run)"

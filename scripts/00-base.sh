@@ -196,7 +196,7 @@ echo "    clamav-freshclam.service enabled: virus DB keeps itself current."
 
 echo "==> [6/8] GPU driver layer (NVIDIA or Intel/AMD — pick one)"
 GPU_CHOSEN=0
-CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei '(VGA compatible controller|3D controller|Display controller):' || true)
+CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
 echo "    Detected GPU line: ${CURRENT_GPU:-unknown}"
 
 if echo "$CURRENT_GPU" | grep -qi 'nvidia'; then

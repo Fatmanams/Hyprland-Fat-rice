@@ -56,7 +56,9 @@ if [[ "$ROOT_FS" == "btrfs" ]]; then
         read -r -p "    Unmount, delete the EMPTY /.snapshots subvolume, create config, remount? [y/N] " yn
         if [[ "$yn" =~ ^[Yy]$ ]]; then
             sudo umount /.snapshots 2>/dev/null || true
-            sudo btrfs subvolume delete /.snapshots 2>/dev/null || sudo rm -rf /.snapshots
+            if ! sudo btrfs subvolume delete /.snapshots 2>/dev/null; then
+                sudo rmdir /.snapshots
+            fi
             sudo snapper -c root create-config /
             sudo mkdir -p /.snapshots
             # archinstall's fstab usually has a /.snapshots entry — remount it.
