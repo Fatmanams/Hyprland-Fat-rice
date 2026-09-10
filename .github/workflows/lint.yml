@@ -26,7 +26,7 @@ jobs:
       - name: jq parse check (strip deliberate // comment headers first)
         run: |
           set -euo pipefail
-          for f in config/swaync/config.json config/wlogout/layout config/zed/settings.json; do
+          for f in config/swaync/config.json config/wlogout/layout config/zed/settings.json config/zed/keymap.json; do
             echo "jq $f"
             sed '/^\/\//d' "$f" | jq empty
           done

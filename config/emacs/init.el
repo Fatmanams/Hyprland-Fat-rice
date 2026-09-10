@@ -10,10 +10,15 @@
 ;; it, and installs emacs-wayland — the PGTK/native-Wayland build) —
 ;; Zed and nvim remain the default editors.
 ;;
-;; LSP: use the built-in eglot (`M-x eglot` in a project buffer). It's
-;; part of Emacs core since 29, so no package manager is needed here —
-;; the servers themselves (pyright, clangd, rust-analyzer, gopls, ...)
-;; are installed by 00-base.sh's [4/8] block.
+;; IDE: eglot (core since 29 — nothing to install) AUTO-STARTS via
+;; prog-mode-hook below; `M-x eglot` remains the manual path. The core
+;; tree-sitter major modes (c/c++/java/python/rust/json) replace the
+;; plain modes whenever the language's grammar is installed — guarded by
+;; treesit-ready-p, and grammars are never auto-downloaded here. eglot's
+;; completions ride the built-in completion-at-point (C-M-i by default,
+;; also bound to C-c C-i below). The language servers themselves
+;; (pyright, clangd, rust-analyzer, gopls, ...) are installed by
+;; 00-base.sh's [4/8] block.
 ;;
 ;; NOTE: Emacs reads this file from ~/.config/emacs/init.el only if
 ;; ~/.emacs.d does not exist (XDG rules). If you have an old ~/.emacs.d,
@@ -117,9 +122,55 @@
 (global-set-key (kbd "C-c b") #'switch-to-buffer)     ; buffer switch
 (global-set-key (kbd "C-c n") #'display-line-numbers-mode) ; toggle numbers
 
+;; ---- IDE: eglot auto-start, tree-sitter remaps, completion -------------------
+;; eglot-ensure quietly does nothing in buffers whose mode has no
+;; registered server (eglot--guess-contact returns nil), so hooking all
+;; of prog-mode is safe; the servers come from 00-base.sh / 10-aur.sh.
+;; Emacs 29 already probes for several python/rust servers in order
+;; (python: pylsp/pyls/pyright-langserver/jedi-language-server/ruff-lsp;
+;; rust: a similar chain). These entries make pyright/rust-analyzer the
+;; explicit first choice instead of relying on that probe order — they
+;; are the only ones 00-base.sh actually installs. (java-mode is
+;; intentionally NOT listed: jdtls isn't installed either — separate
+;; decision.)
+(with-eval-after-load 'eglot
+  (add-to-list 'eglot-server-programs
+               '((python-mode python-ts-mode) "pyright-langserver" "--stdio"))
+  (add-to-list 'eglot-server-programs
+               '((rust-mode rust-ts-mode) "rust-analyzer")))
+(add-hook 'prog-mode-hook #'eglot-ensure)
+
+;; Prefer the Emacs-29-core tree-sitter major modes, but only when the
+;; language's grammar is actually installed — 29 has no automatic
+;; fallback (python-ts-mode errors outright without its grammar).
+;; treesit-ready-p takes the LANGUAGE symbol (cpp for c++-ts-mode, etc.),
+;; not the mode name; with quiet=t it just returns nil when the grammar
+;; or tree-sitter itself is missing, leaving the plain mode active.
+;; Lua is deliberately absent: no core lua-ts-mode exists (Emacs 30's
+;; lua-mode is a plain non-treesitter mode), so there's nothing to remap.
+;; Grammar INSTALLS stay manual too — treesit-install-language-grammar
+;; would be an unreviewed network fetch, same objection as an unpinned
+;; plugin clone.
+(when (require 'treesit nil t)
+  (dolist (spec '((c-mode      c-ts-mode      c)
+                  (c++-mode    c++-ts-mode    cpp)
+                  (java-mode   java-ts-mode   java)
+                  (python-mode python-ts-mode python)
+                  (rust-mode   rust-ts-mode   rust)
+                  (json-mode   json-ts-mode   json)))
+    (when (treesit-ready-p (nth 2 spec) t)
+      (add-to-list 'major-mode-remap-alist (cons (car spec) (nth 1 spec))))))
+
+;; eglot registers its completion-at-point-functions backend
+;; automatically when it attaches — the only thing to add is a reachable
+;; key. The default C-M-i is awkward on many keyboards/terminals; C-c C-i
+;; (= C-c TAB) is free in this file's C-c set (w/q/e/b/n) and unbound by
+;; default. C-M-i itself is left in place.
+(global-set-key (kbd "C-c C-i") #'completion-at-point)
+
 ;; ---- fats-mode / supermode (F2 toggles) --------------------------------------
 ;; Same F2 contract as config/nvim/init.lua:
-;;   supermode = this file's DEFAULT. A hand-rolled vim-ish motion layer:
+;;   supermode = the F2 alternative. A hand-rolled vim-ish motion layer:
 ;;               h j k l move point, w b word motion, `i` drops into the
 ;;               insert phase (ordinary self-inserting Emacs); <escape> or
 ;;               C-g (which also quits) from the insert phase goes back to
@@ -130,7 +181,8 @@
 ;;               isearch-forward), C-z undoes (was suspend-frame) and
 ;;               C-a selects all (was move-beginning-of-line).
 ;; F2 flips between them. Stock Emacs is neither mode; we default to
-;; supermode at startup to mirror nvim. The mode-line lighter
+;; fats-mode at startup to mirror nvim and Zed (both also start in
+;; plain-insert editing). The mode-line lighter
 ;; (SUPER / FATS / super/insert) shows which mode is live.
 
 (defun supermode--motion-command (command char)
@@ -218,5 +270,6 @@ time the key fires."
     (message "fats-mode: C-s save, C-z undo, C-a select-all; F2 = supermode")))
 (global-set-key (kbd "<f2>") #'rice-toggle-edit-mode)
 
-;; Startup default: supermode (motion phase), matching nvim's default.
-(supermode-motion-mode 1)
+;; Startup default: fats-mode (plain editing), matching nvim and Zed;
+;; F2 switches into supermode's motion phase.
+(fats-mode 1)
