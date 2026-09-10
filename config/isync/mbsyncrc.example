@@ -1,5 +1,5 @@
 # Mail is stored under ~/Mail and synchronized manually with `mbsync -a`.
-# OAuth tokens and password commands are intentionally kept outside git.
+# Copy to mbsyncrc, then replace identities and password commands locally.
 IMAPAccount gmail
 Host imap.gmail.com
 User you@gmail.com
@@ -36,7 +36,7 @@ SubFolders Verbatim
 
 Channel other
 Far :other-remote:
-Near :other-local:
+Near :other-local
 Patterns *
 Create Both
 Expunge Both

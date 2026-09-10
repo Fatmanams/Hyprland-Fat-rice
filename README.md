@@ -142,10 +142,18 @@ account uses OAuth2 through Neomutt's packaged `mutt_oauth2.py`; locate
 it with `pacman -Ql neomutt | grep oauth2`, then authorize the token
 under `~/.config/neomutt/oauth/`.
 
+The public `~/.config/msmtp/config.example` and
+`~/.config/isync/mbsyncrc.example` files are copied to their real config
+names on first install. Replace their placeholder addresses locally; the
+real `config` and `mbsyncrc` files are gitignored. Neomutt signing is
+disabled until `YOUR_GPG_KEY_ID_HERE` is replaced with a real key and
+`crypt_autosign` is explicitly enabled.
+
 Copy `~/.config/vdirsyncer/config.example` to
 `~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
 client credentials, then run `vdirsyncer discover google_calendar`.
-`30-dotfiles.sh` enables the user timer once this real config exists.
+`30-dotfiles.sh` offers to enable the ClamAV timer and enables the calendar
+timer only once this real config exists.
 
 ### AI coding tools
 

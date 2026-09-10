@@ -82,6 +82,13 @@ if systemctl is-active --quiet clamav-freshclam.service; then
 else
     fail "clamav-freshclam.service not active (state: $(systemctl is-active clamav-freshclam.service 2>&1))"
 fi
+if grep -Eq '^[[:space:]]*set[[:space:]]+crypt_autosign[[:space:]]*=[[:space:]]*yes' \
+    "$HYPR_CFG/../neomutt/neomuttrc" 2>/dev/null &&
+    grep -q 'YOUR_GPG_KEY_ID_HERE' "$HYPR_CFG/../neomutt/neomuttrc"; then
+    fail "Neomutt signing is enabled with the placeholder GPG key"
+else
+    pass "Neomutt signing is disabled or has a configured GPG key"
+fi
 
 echo "==> [5/8] bluetooth"
 if systemctl is-active --quiet bluetooth.service; then

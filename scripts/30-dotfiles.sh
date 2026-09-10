@@ -35,6 +35,18 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
+# Mail transport/sync configs contain user addresses and are installed from
+# public examples only. Never overwrite an existing personalized config.
+for pair in \
+    "msmtp/config" \
+    "isync/mbsyncrc"; do
+    target="$HOME/.config/$pair"
+    example="$HOME/.config/${pair}.example"
+    if [[ ! -f "$target" && -f "$example" ]]; then
+        cp -a "$example" "$target"
+    fi
+done
+
 # config/applications/ only exists as the source for the .desktop install
 # below — it does NOT belong under ~/.config/ (nothing reads
 # ~/.config/applications/). Remove the stray copy the blanket cp made;
@@ -67,12 +79,16 @@ update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
 # make them now so nothing errors out.
 mkdir -p "$HOME/.cache/wal"
 
-# Enable the daily on-demand scan. clamonacc/on-access scanning is not
-# enabled by default because fanotify scanning on every file event costs
-# performance; opt in separately if you need that behavior.
+# Offer the daily on-demand scan. clamonacc/on-access scanning is not
+# enabled because fanotify scanning on every file event costs performance.
 chmod +x "$HOME/.config/clamav/scan-targets.sh"
 systemctl --user daemon-reload
-systemctl --user enable --now clamav-scan.timer
+read -r -p "Enable the daily ClamAV user scan timer? [y/N] " enable_clamav
+if [[ "$enable_clamav" =~ ^[Yy]$ ]]; then
+    systemctl --user enable --now clamav-scan.timer
+else
+    echo "    ClamAV timer left disabled; run systemctl --user enable --now clamav-scan.timer when ready."
+fi
 
 # Calendar sync is opt-in until the user fills the OAuth example.
 if [[ -f "$HOME/.config/vdirsyncer/config" ]]; then

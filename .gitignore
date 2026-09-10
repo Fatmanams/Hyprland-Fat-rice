@@ -27,6 +27,8 @@ build-aur/
 config/neomutt/accounts/*.muttrc
 !config/neomutt/accounts/*.muttrc.example
 config/neomutt/oauth/
+config/msmtp/config
+config/isync/mbsyncrc
 config/vdirsyncer/config
 config/vdirsyncer/*token*
 

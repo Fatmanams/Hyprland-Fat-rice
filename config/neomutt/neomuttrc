@@ -18,6 +18,7 @@ bind index,pager k previous-line
 set editor = "nvim"
 set index_format = "%4C %Z %{%b %d} %-20.20L %s"
 set crypt_use_gpgme = yes
-set crypt_autosign = yes
+# Signing is opt-in: replace the placeholder key before enabling it.
+set crypt_autosign = no
 set crypt_opportunistic_encrypt = yes
 set pgp_default_key = "YOUR_GPG_KEY_ID_HERE"

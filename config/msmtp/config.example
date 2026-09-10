@@ -1,5 +1,5 @@
 # msmtp sends mail for Neomutt. Keep this file mode 600 after installation.
-# Replace example identities and password commands with local credentials.
+# Copy to config, then replace identities and password commands locally.
 defaults
 auth on
 tls on
