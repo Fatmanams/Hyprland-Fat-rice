@@ -58,7 +58,8 @@ apply() {
 
     echo "Theme applied: $name (running 'wal -i' returns to wallpaper mode)"
 
-    # Reload the components that read colors at startup.
+    # Reload persistent components that read colors at startup. Transient
+    # tools (Rofi, wlogout, Neomutt, and ikhal) read the new files on launch.
     if command -v waybar >/dev/null 2>&1 && pgrep -x waybar >/dev/null 2>&1; then
         killall waybar 2>/dev/null || true
         (waybar >/dev/null 2>&1 &)
@@ -71,7 +72,7 @@ apply() {
     if command -v swaync-client >/dev/null 2>&1 \
             && pgrep -x swaync >/dev/null 2>&1; then
         swaync-client --reload-config >/dev/null 2>&1 || true
-        swaync-client --reload-style >/dev/null 2>&1 || true
+        swaync-client --reload-css >/dev/null 2>&1 || true
     fi
     if command -v hyprctl >/dev/null 2>&1; then
         hyprctl reload >/dev/null 2>&1 || true

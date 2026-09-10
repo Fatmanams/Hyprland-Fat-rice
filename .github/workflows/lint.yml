@@ -50,18 +50,18 @@ jobs:
       - name: theme presets carry every pywal format
         run: |
           set -euo pipefail
-          # AGENTS.md palette contract: each preset must ship all seven
+          # AGENTS.md palette contract: each preset must ship all eight
           # formats, and switch-theme.sh must copy each one.
           rc=0
           for d in config/hypr/themes/*/; do
-            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
               if [ ! -f "$d$f" ]; then
                 echo "MISSING: $d$f"
                 rc=1
               fi
             done
           done
-          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
             if ! grep -q "$f" config/hypr/switch-theme.sh; then
               echo "MISSING from switch-theme.sh cp list: $f"
               rc=1
