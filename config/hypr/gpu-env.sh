@@ -21,6 +21,12 @@
 
 gpu_env_loaded=0
 
+# Clear variables managed by this file so re-sourcing it after a hardware or
+# display-stack change cannot retain settings from the previous detection.
+unset DRI_PRIME __GL_THREADED_OPTIMIZATIONS __GL_GSYNC_ALLOWED __GL_VRR_ALLOWED
+unset VDPAU_DRIVER LIBVA_DRIVER_NAME MESA_SHADER_CACHE_DIR
+unset MESA_SHADER_CACHE_MAX_SIZE
+
 # ---- Detect vendor ------------------------------------------------------
 # One lspci call per shell start; vendor detection and the GPU-count check
 # below both grep this same capture.
