@@ -1,0 +1,6 @@
+[Unit]
+Description=Scan user downloads and mail with ClamAV
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/clamav/scan-targets.sh

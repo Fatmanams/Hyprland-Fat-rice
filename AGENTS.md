@@ -62,6 +62,7 @@ policy does not require every package to use that pipeline.
 |                        | eglot. npm registry tarball + sha256sum, `npm i -g` into `$pkgdir` |
 |                        | with the cache confined to `$srcdir`. No build(), no hooks. The    |
 |                        | rest of the LSP stack is official-repo (`00-base.sh` step 4).      |
+| `chkrootkit`           | AUR-only rootkit checker; review its PKGBUILD before approval.      |
 
 Packages that do not have a performance reason to be compiled remain
 in the normal distribution install set:
@@ -140,6 +141,8 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}
+    ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
+    ├── systemd/user/             user timers, including the daily ClamAV scan
     ├── wlogout/{layout,style.css}
     ├── ghostty/
     │   ├── config               primary terminal; baked Mocha = pre-wal fallback
@@ -237,6 +240,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
+| Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
 | Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |
 | Edit gaming HUD defaults                      | `config/MangoHud/MangoHud.conf`                              |

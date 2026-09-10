@@ -27,6 +27,7 @@
 #     mpvpaper               https://aur.archlinux.org/mpvpaper.git
 #     vscode-langservers-extracted
 #                            https://aur.archlinux.org/vscode-langservers-extracted.git
+#     chkrootkit             https://aur.archlinux.org/chkrootkit.git
 #
 #     (Zed is NATIVE AUR-only — no curl|bash installer, no official repo —
 #     so per the policy it goes through this same reviewed-makepkg pipeline.
@@ -217,6 +218,7 @@ PACKAGES=(
     helium-browser-bin
     mpvpaper
     vscode-langservers-extracted
+    chkrootkit
 )
 
 for p in "${PACKAGES[@]}"; do

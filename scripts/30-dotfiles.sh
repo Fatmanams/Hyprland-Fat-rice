@@ -67,6 +67,13 @@ update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
 # make them now so nothing errors out.
 mkdir -p "$HOME/.cache/wal"
 
+# Enable the daily on-demand scan. clamonacc/on-access scanning is not
+# enabled by default because fanotify scanning on every file event costs
+# performance; opt in separately if you need that behavior.
+chmod +x "$HOME/.config/clamav/scan-targets.sh"
+systemctl --user daemon-reload
+systemctl --user enable --now clamav-scan.timer
+
 # Calendar sync is opt-in until the user fills the OAuth example.
 if [[ -f "$HOME/.config/vdirsyncer/config" ]]; then
     systemctl --user daemon-reload

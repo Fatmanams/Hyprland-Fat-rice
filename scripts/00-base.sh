@@ -125,7 +125,7 @@ sudo pacman -S --needed --noconfirm \
     bitwarden \
     bluez bluez-utils blueman \
     ufw \
-    clamav apparmor firejail \
+    clamav libnotify apparmor firejail \
     kde-cli-tools
 
 echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"

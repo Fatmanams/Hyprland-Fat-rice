@@ -84,11 +84,25 @@ source is used. The packages this rice does compile use CPU-native flags
 | Password manager | bitwarden            | pacman (extra)          | SUPER+V; org.freedesktop.secrets covered by gnome-keyring (already installed) |
 | Bluetooth        | bluez bluez-utils blueman | pacman (extra)     | bluetooth.service enabled by 00-base.sh; blueman-applet autostarts into waybar's tray |
 | Firewall         | ufw                  | pacman (extra)          | default deny incoming / allow outgoing, enabled by 00-base.sh |
-| Antivirus        | clamav               | pacman (extra)          | on-demand `clamscan`; clamav-freshclam.service (enabled by 00-base.sh) keeps the signature DB current |
+| Antivirus        | clamav + chkrootkit  | pacman (extra) + AUR   | daily on-demand `clamscan`; `chkrootkit` is run manually; freshclam keeps signatures current |
 | MAC / shields    | apparmor             | pacman (extra)          | LSM mandatory access control; inert until the kernel cmdline opt-in — first-boot TODO #4 |
 | Per-app sandbox  | firejail             | pacman (extra)          | wrap a single app: `firejail <cmd>`; profiles in /etc/firejail |
 | Snapshots        | snapper / timeshift + cronie | pacman (extra)   | picked by root fs — btrfs gets snapper, anything else gets Timeshift RSYNC (`45-snapshots.sh`) |
 ---
+
+### Antivirus and rootkit checks
+
+`00-base.sh` installs official-repository ClamAV and `libnotify`, enables
+`clamav-freshclam.service`, and `30-dotfiles.sh` enables a daily user timer
+that scans `~/Downloads`, the existing `~/Mail/gmail` and `~/Mail/other`
+Maildirs, and discovered mounted Windows `Users` directories. Results are
+reported through SwayNC via `notify-send`; detections and scan errors use
+critical urgency. Logs remain in `~/.cache/clamav-scan.log`.
+
+`chkrootkit` is AUR-only and is handled by the reviewed `10-aur.sh` pipeline.
+Run `sudo chkrootkit` manually when a rootkit check is needed. The optional
+`clamonacc` fanotify layer is intentionally not enabled because it scans file
+events continuously; this rice does not enable on-access scanning by default.
 
 ## Source-built package inventory
 
