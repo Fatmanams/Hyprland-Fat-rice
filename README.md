@@ -149,6 +149,8 @@ names on first install. Replace their placeholder addresses locally; the
 real `config` and `mbsyncrc` files are gitignored. Neomutt signing is
 disabled until `YOUR_GPG_KEY_ID_HERE` is replaced with a real key and
 `crypt_autosign` is explicitly enabled.
+The account examples set Neomutt's `sendmail` command to the matching
+msmtp account, so outgoing mail uses the reviewed local msmtp configuration.
 
 Copy `~/.config/vdirsyncer/config.example` to
 `~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
@@ -884,7 +886,7 @@ linux-rice/
     │   ├── hyprpaper.conf                  static wallpaper FALLBACK (all outputs)
     │   ├── start-mpvpaper.sh               one animated wallpaper process per output
     │   ├── hypridle.conf                   idle / lock / suspend listeners
-    │   ├── keybinds-extra.conf             empty by default; user-local bind additions
+    │   ├── keybinds-extra.conf             populated defaults; user-editable bind assignments
     │   ├── switch-theme.sh                 preset palette switcher (SUPER+SHIFT+T cycles)
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (six formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)

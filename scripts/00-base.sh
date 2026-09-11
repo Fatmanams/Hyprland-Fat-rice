@@ -63,11 +63,18 @@ fi
 if grep -q '^BUILDENV=' "$MAKEPKG" && grep -q '!ccache' "$MAKEPKG"; then
     sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
     echo "    ccache enabled in BUILDENV"
+elif ! grep -q '^BUILDENV=' "$MAKEPKG"; then
+    echo 'BUILDENV=(!distcc !color ccache check !sign)' | sudo tee -a "$MAKEPKG" >/dev/null
+    echo "    ccache enabled in BUILDENV"
 elif ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
     sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
     echo "    ccache enabled in BUILDENV"
 else
     echo "    ccache already in BUILDENV"
+fi
+if ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
+    echo "    ERROR: ccache is not enabled in BUILDENV after configuration." >&2
+    exit 1
 fi
 
 # Everything the rice actually compiles (the AUR set in 10-aur.sh) gets

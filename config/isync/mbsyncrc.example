@@ -36,7 +36,7 @@ SubFolders Verbatim
 
 Channel other
 Far :other-remote:
-Near :other-local
+Near :other-local:
 Patterns *
 Create Both
 Expunge Both

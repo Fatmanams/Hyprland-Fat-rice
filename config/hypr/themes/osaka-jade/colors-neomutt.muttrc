@@ -6,7 +6,7 @@ color hdrdefault        color4         default
 color quoted            color2         default
 color signature         color3         default
 color attachment        color5         default
-color error              color1         default
+color error             color1         default
 color message           color6         default
 color search            color0         color3
 color sidebar_new       color2         default
