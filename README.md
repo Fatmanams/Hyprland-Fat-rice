@@ -64,7 +64,12 @@ source is used. The packages this rice does compile use CPU-native flags
 | Logout menu      | wlogout              | **AUR — makepkg'd**     |       |
 | Terminal         | ghostty              | pacman (extra)          | primary; shell = fish (pacman) |
 | Code editor      | zed                  | **AUR — makepkg'd**     | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback) |
+| GUI code editor   | lapce                | pacman (extra)          | optional Rust editor with built-in LSP, terminal, remote development, and Vim mode |
+| Terminal editor   | croft                | upstream cargo install  | optional VS Code-style TUI; no Arch/AUR package, launcher gives the reviewed upstream command |
 | Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
+| Neovim GUI       | neovide              | pacman (extra)          | GPU-accelerated Neovim client; inherits the pywal-driven Neovim palette |
+| Terminal editor  | ox                  | **AUR — review required** | lightweight TUI editor; Ox config is generated from the active pywal16 palette; verify `ox-bin` availability before running the AUR stage |
+| GPU Emacs fork   | neomacs              | **AUR — makepkg'd**     | experimental Rust/wgpu Emacs fork; reuses the existing pywal-driven Emacs config |
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
 | Email / calendar | neomutt + khal + vdirsyncer | pacman (extra) | Neomutt mail, ikhal calendar, Google Calendar sync |
@@ -107,6 +112,13 @@ Run `sudo chkrootkit` manually when a rootkit check is needed. The optional
 `clamonacc` fanotify layer is intentionally not enabled because it scans file
 events continuously; this rice does not enable on-access scanning by default.
 
+Ox uses its upstream Lua `.oxrc` format (not RON). The rice renders
+`~/.config/ox/.oxrc` from `~/.cache/wal/colors.sh`; `SUPER+R` launches it
+through `config/ox/ox-launch.sh`. Neovide inherits the existing Neovim
+configuration and palette without defining a second GUI color scheme.
+Neomacs reuses `~/.config/emacs/init.el`, so its palette remains owned by
+the existing `colors.el` pywal template.
+
 ## Source-built package inventory
 
 These are the packages currently handled by the reviewed source-build
@@ -120,6 +132,8 @@ there is a documented performance reason to add them here.
 | `bibata-cursor-theme`  | `<https://aur.archlinux.org/bibata-cursor-theme.git>` | Cursor theme, has install hooks (systemctl-like) |
 | `wlogout`              | `<https://aur.archlinux.org/wlogout.git>` | Wayland logout menu, GTK3                                         |
 | `zed`                  | `<https://aur.archlinux.org/zed.git>`    | **Review carefully**: large Rust project, many cargo crates, may pull release assets during build |
+| `ox-bin`               | `<https://aur.archlinux.org/ox-bin.git>` | Requested prebuilt Ox binary; verify the package exists before approval. `ox-git` is the source-build alternative. |
+| `neomacs-bin`          | `<https://aur.archlinux.org/neomacs-bin.git>` | Prebuilt experimental GPU Emacs fork; review release URLs, checksums, and install paths before approval. |
 | `helium-browser-bin`   | `<https://aur.archlinux.org/helium-browser-bin.git>` | Precompiled Helium (imputnet chromium fork), repackaged from the upstream release tarball — verified WITH its `.asc` via `validpgpkeys` (Helium signing key), plus two sha256-pinned local patches. No build(), no hooks, no curl\|bash. |
 | `mpvpaper`             | `<https://aur.archlinux.org/mpvpaper.git>` | Video wallpaper daemon (v1.9). Pinned GitHub release tarball with b2sum, meson/ninja build, deps libmpv + libwayland (mpv auto-pulled by makepkg -s), optdep socat. No install hooks, no curl\|bash, no red flags. |
 | `vscode-langservers-extracted` | `<https://aur.archlinux.org/vscode-langservers-extracted.git>` | HTML/CSS/JSON/ESLint language servers (v4.10.0), used by Zed and Emacs' eglot. Source is the upstream npm registry tarball pinned with a sha256sum; `package()` is `npm i -g` into `$pkgdir` with the npm cache confined to `$srcdir`, plus chown + license install. No `build()`, no install hooks, no curl\|bash. It vendors node_modules — inherent to the npm tarball, not added by the PKGBUILD. |
@@ -594,6 +608,20 @@ unset, so Zed opens in plain editing and F2 flips modal editing on —
 F2 again turns it off. Same default-plain, F2-is-the-alternative
 arrangement as nvim's FATS/SUPER and Emacs's supermode/fats-mode.
 
+The Zed setup also enables signature help, code lenses, inlay hints,
+relative line numbers, trailing-whitespace cleanup, final-newline
+insertion, project-panel and terminal defaults, and exclusions for generated
+trees such as `.git`, `node_modules`, `target`, and `.venv`. The existing
+system language servers from `00-base.sh` remain the source of truth; no
+Mason-like runtime installer or extension stack is introduced.
+
+When this repository is opened as a Zed project, `.zed/tasks.json` provides
+repo-local tasks for Bash syntax, JSON validation, the eight-format theme
+contract, whitespace checking, and the combined lint pass. The keymap binds
+`Ctrl+Alt+B` to task selection, `Ctrl+Alt+R` to rerun the last task,
+`Ctrl+Alt+T` to focus the terminal, and `Ctrl+Alt+F` to format the current
+buffer.
+
 **Neovim** is the terminal IDE, configured at `~/.config/nvim/init.lua` —
 still a single file, but plugin-powered since the plugin rule was
 relaxed: **lazy.nvim** specs inline (nvim-lspconfig, treesitter pinned
@@ -668,6 +696,11 @@ Bindings:
 | Keybind           | Action                                       |
 |-------------------|----------------------------------------------|
 | `SUPER + E`        | Open Zed                                     |
+| `SUPER + R`        | Open Ox in the terminal                     |
+| `SUPER + Z`        | Open Neovide                                 |
+| `SUPER + Y`        | Open Neomacs (GPU Emacs fork)               |
+| `SUPER + G`        | Open Lapce                                    |
+| `SUPER + C`        | Open croft in Ghostty (prints the install hint if missing) |
 | `SUPER + SHIFT + E`| Open Thunar (was SUPER+E before Zed won it)  |
 | `SUPER + SHIFT + T`| Cycle theme preset (mocha/gruvbox/tokyonight/osaka-jade) |
 | `SUPER + V`        | Open Bitwarden                               |
@@ -899,6 +932,10 @@ linux-rice/
     │   └── lazy-lock.json                   pinned plugin commits (lazy.nvim-generated, committed)
     ├── emacs/
     │   └── init.el                          opt-in single-file Emacs config; eglot for LSP
+    ├── croft/                               optional Croft TUI launcher
+    ├── neovide/                             GPU Neovim GUI settings; inherits nvim palette
+    ├── ox/                                  pywal-rendered Ox Lua config + launcher
+    ├── neomacs/                             optional GPU Emacs launcher
     ├── waybar/
     │   ├── config                          top bar layout
     │   └── style.css                       pywal16 @import colors

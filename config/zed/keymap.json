@@ -5,7 +5,11 @@
 [
   {
     "bindings": {
-      "f2": "workspace::ToggleVimMode"
+      "f2": "workspace::ToggleVimMode",
+      "ctrl-alt-b": "task::Spawn",
+      "ctrl-alt-r": "task::Rerun",
+      "ctrl-alt-t": "terminal_panel::ToggleFocus",
+      "ctrl-alt-f": "editor::Format"
     }
   }
 ]

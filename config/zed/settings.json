@@ -8,10 +8,48 @@
   "auto_install_extensions": {
     "catppuccin": true
   },
+  "auto_update": true,
   "ui_font_size": 16,
   "buffer_font_family": "JetBrainsMono Nerd Font",
   "buffer_font_size": 14,
+  "buffer_line_height": "comfortable",
   "autosave": "on_focus_change",
   "format_on_save": "on",
-  "vertical_scroll_margin": 4
+  "auto_indent": true,
+  "auto_indent_on_paste": true,
+  "auto_signature_help": true,
+  "show_signature_help_after_edits": true,
+  "code_lens": "on",
+  "diagnostics_max_severity": "hint",
+  "inlay_hints": {
+    "enabled": true
+  },
+  "relative_line_numbers": true,
+  "show_whitespaces": "selection",
+  "ensure_final_newline_on_save": true,
+  "remove_trailing_whitespace_on_save": true,
+  "vertical_scroll_margin": 4,
+  "scrollbar": {
+    "show": "auto"
+  },
+  "project_panel": {
+    "dock": "left",
+    "default_width": 280,
+    "file_icons": true,
+    "folder_icons": true,
+    "git_status": true
+  },
+  "terminal": {
+    "font_family": "JetBrainsMono Nerd Font",
+    "font_size": 14,
+    "line_height": "comfortable",
+    "copy_on_select": false
+  },
+  "file_scan_exclusions": [
+    "**/.git",
+    "**/.cache",
+    "**/node_modules",
+    "**/target",
+    "**/.venv"
+  ]
 }

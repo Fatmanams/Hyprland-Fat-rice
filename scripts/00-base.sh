@@ -107,7 +107,7 @@ sudo pacman -S --needed --noconfirm \
     wlsunset \
     ghostty kitty alacritty \
     fish \
-    nano neovim \
+    nano neovim lapce neovide \
     polkit polkit-gnome polkit-kde-agent gnome-keyring seahorse \
     NetworkManager \
     pipewire wireplumber \

@@ -1,0 +1,64 @@
+-- Generated from ~/.cache/wal/colors.sh by ox-theme.sh. Do not edit.
+colors.editor_bg = {@EDITOR_BG@}
+colors.editor_fg = {@EDITOR_FG@}
+colors.line_number_fg = {@COMMENT@}
+colors.line_number_bg = {@EDITOR_BG@}
+colors.status_bg = {@PANEL_BG@}
+colors.status_fg = {@ACCENT@}
+colors.highlight = {@ACCENT@}
+colors.tab_inactive_fg = {@EDITOR_FG@}
+colors.tab_inactive_bg = {@PANEL_BG@}
+colors.tab_active_fg = {@EDITOR_FG@}
+colors.tab_active_bg = {@EDITOR_BG@}
+colors.split_bg = {@EDITOR_BG@}
+colors.split_fg = {@PANEL_BG@}
+colors.info_fg = {@BLUE@}
+colors.info_bg = {@EDITOR_BG@}
+colors.warning_fg = {@YELLOW@}
+colors.warning_bg = {@EDITOR_BG@}
+colors.error_fg = {@RED@}
+colors.error_bg = {@EDITOR_BG@}
+colors.selection_fg = {@EDITOR_FG@}
+colors.selection_bg = {@SELECTION@}
+colors.file_tree_bg = {@EDITOR_BG@}
+colors.file_tree_fg = {@EDITOR_FG@}
+colors.file_tree_selection_fg = {@EDITOR_FG@}
+colors.file_tree_selection_bg = {@SELECTION@}
+colors.file_tree_red = {@RED@}
+colors.file_tree_orange = {@YELLOW@}
+colors.file_tree_yellow = {@YELLOW@}
+colors.file_tree_green = {@GREEN@}
+colors.file_tree_lightblue = {@CYAN@}
+colors.file_tree_darkblue = {@BLUE@}
+colors.file_tree_purple = {@MAGENTA@}
+colors.file_tree_pink = {@MAGENTA@}
+colors.file_tree_brown = {@COMMENT@}
+colors.file_tree_grey = {@COMMENT@}
+syntax:set("string", {@GREEN@})
+syntax:set("comment", {@COMMENT@})
+syntax:set("digit", {@CYAN@})
+syntax:set("keyword", {@MAGENTA@})
+syntax:set("attribute", {@CYAN@})
+syntax:set("character", {@CYAN@})
+syntax:set("type", {@BLUE@})
+syntax:set("function", {@BLUE@})
+syntax:set("header", {@CYAN@})
+syntax:set("macro", {@MAGENTA@})
+syntax:set("namespace", {@BLUE@})
+syntax:set("struct", {@BLUE@})
+syntax:set("operator", {@COMMENT@})
+syntax:set("boolean", {@GREEN@})
+syntax:set("table", {@BLUE@})
+syntax:set("reference", {@MAGENTA@})
+syntax:set("tag", {@CYAN@})
+syntax:set("heading", {@BLUE@})
+syntax:set("link", {@MAGENTA@})
+syntax:set("key", {@MAGENTA@})
+syntax:set("quote", {@COMMENT@})
+syntax:set("bold", {@CYAN@})
+syntax:set("italic", {@CYAN@})
+syntax:set("block", {@CYAN@})
+syntax:set("image", {@CYAN@})
+syntax:set("list", {@GREEN@})
+syntax:set("insertion", {@GREEN@})
+syntax:set("deletion", {@RED@})
