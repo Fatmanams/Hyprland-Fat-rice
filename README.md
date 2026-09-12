@@ -202,7 +202,7 @@ wallpaper the rice uses one of four shipped static presets —
 file formats under `config/hypr/themes/`, so every themed component —
 waybar, swaync, rofi, eww, wlogout, nvim, emacs, ghostty, zed, and
 Hyprland's own window borders — picks them up unchanged. Each preset
-dir carries all seven formats the rice consumes: `colors-waybar.css`,
+dir carries all eight formats the rice consumes: `colors-waybar.css`,
 `colors-rofi.rasi`, `colors-wal.vim`, `colors.el`, `colors.sh`,
 `colors-zed.json`, `colors-hyprland.conf`.
 
@@ -410,7 +410,7 @@ chmod +x scripts/*.sh
 # 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
 #    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all seven pywal formats, and the
+#    disk, every theme preset carrying all eight pywal formats, and the
 #    snapshot tooling live (snapper timers on btrfs, cronie otherwise —
 #    same branch 45-snapshots.sh took). Best run after one Hyprland
 #    session has booted.
@@ -772,10 +772,10 @@ implementation choice rather than an additional policy requirement.
   `xdg-desktop-portal-gtk` alongside it as fallback. Both are
   installed by `00-base.sh`; `hyprland.conf` explicitly starts both
   user services at session start.
-- **No blind auto-detected monitor= in hyprland.conf.** The shipped
-  `monitor=,preferred,auto,1` is a documented stopgap with explicit
-  TODO instructions to replace it from `hyprctl monitors` after first
-  boot (see "Mandatory first-boot TODOs" above).
+- **Multi-monitor defaults are intentionally wildcarded.** The shipped
+  `monitor=,preferred,auto,1` applies the preferred mode to every connected
+  output. Use `hyprctl monitors` and explicit per-output lines only when
+  custom modes, positions, scale, or rotation are needed.
 
 ---
 

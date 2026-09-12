@@ -322,7 +322,7 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    `~/.cache/wal/current-theme`. Rules: presets are applied ONLY via the
    switcher; `wal -i` still wins whenever `wallpaper.jpg` exists; never
    hand-edit files inside `~/.cache/wal/` (they're regenerated); when
-   adding a preset, keep all seven file formats (colors-waybar.css,
+   adding a preset, keep all eight file formats (colors-waybar.css,
    colors-rofi.rasi, colors-wal.vim, colors.el, colors.sh,
    colors-zed.json, colors-hyprland.conf) in sync AND
    listed in `switch-theme.sh`'s `cp -f` — a format missing from either
