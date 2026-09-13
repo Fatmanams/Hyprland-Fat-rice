@@ -79,7 +79,7 @@ source is used. The packages this rice does compile use CPU-native flags
 | TUI file mgr     | yazi                 | pacman (extra)          | SUPER+SHIFT+E |
 | GUI file mgr     | thunar               | pacman (extra)          | SUPER+SHIFT+F; +gvfs +tumbler +thunar-archive-plugin |
 | Display manager  | sddm                 | pacman (extra)          |       |
-| SDDM theme       | sddm-astronaut-theme | **bare git clone**      | rule #4: no build step, cloned straight into /usr/share/sddm/themes |
+| SDDM theme       | sddm-astronaut-theme | **bare git clone**      | static-asset policy: no build step, cloned straight into /usr/share/sddm/themes |
 | GTK theming GUI  | nwg-look             | pacman (extra)          |       |
 | Qt theming       | kvantum / kvantum-qt5 | pacman (extra)         |       |
 | Gaming           | gamemode mangohud lib32-mangohud steam | pacman (extra/multilib) | steam installed by 00-base.sh (multilib) |
@@ -137,20 +137,24 @@ repos** — these are installed by `scripts/00-base.sh`, **not** built:
 
 ### Mail and calendar setup
 
-Copy the account examples into `~/.config/neomutt/accounts/`, replace
-their placeholders, and keep the real files uncommitted. The Gmail
-account uses OAuth2 through Neomutt's packaged `mutt_oauth2.py`; locate
-it with `pacman -Ql neomutt | grep oauth2`, then authorize the token
-under `~/.config/neomutt/oauth/`.
+`30-dotfiles.sh` copies the account examples into
+`~/.config/neomutt/accounts/` (and the msmtp/isync examples into their
+real config names) only when no real file exists yet — local
+personalization is never overwritten. Replace the placeholders after
+install; the real files are gitignored. The Gmail account uses OAuth2
+through Neomutt's packaged `mutt_oauth2.py`: locate it with
+`pacman -Ql neomutt | grep oauth2`, copy it to
+`~/.config/neomutt/oauth/mutt_oauth2.py` (the path the example configs
+reference), and authorize the token alongside it.
 
 The public `~/.config/msmtp/config.example` and
-`~/.config/isync/mbsyncrc.example` files are copied to their real config
-names on first install. Replace their placeholder addresses locally; the
-real `config` and `mbsyncrc` files are gitignored. Neomutt signing is
+`~/.config/isync/mbsyncrc.example` follow the same copy-if-absent rule
+and are installed mode 600. Neomutt signing is
 disabled until `YOUR_GPG_KEY_ID_HERE` is replaced with a real key and
 `crypt_autosign` is explicitly enabled.
-The account examples set Neomutt's `sendmail` command to the matching
-msmtp account, so outgoing mail uses the reviewed local msmtp configuration.
+Folder-hooks re-source the matching account file when a mailbox is
+opened, so `from`/`sendmail` always follow the mailbox you're in and
+outgoing mail uses the reviewed local msmtp configuration.
 
 Copy `~/.config/vdirsyncer/config.example` to
 `~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
@@ -204,7 +208,7 @@ waybar, swaync, rofi, eww, wlogout, nvim, emacs, ghostty, zed, and
 Hyprland's own window borders — picks them up unchanged. Each preset
 dir carries all eight formats the rice consumes: `colors-waybar.css`,
 `colors-rofi.rasi`, `colors-wal.vim`, `colors.el`, `colors.sh`,
-`colors-zed.json`, `colors-hyprland.conf`.
+`colors-zed.json`, `colors-hyprland.conf`, `colors-neomutt.muttrc`.
 
 Switching:
 
@@ -888,7 +892,7 @@ linux-rice/
     │   ├── hypridle.conf                   idle / lock / suspend listeners
     │   ├── keybinds-extra.conf             populated defaults; user-editable bind assignments
     │   ├── switch-theme.sh                 preset palette switcher (SUPER+SHIFT+T cycles)
-    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (six formats each)
+    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (eight formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)
     ├── nvim/
     │   ├── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER

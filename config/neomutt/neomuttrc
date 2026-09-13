@@ -5,8 +5,13 @@ set mbox_type = Maildir
 set folder = ~/Mail
 set spoolfile = "+gmail/Inbox"
 mailboxes "+gmail/Inbox" "+other/Inbox"
+# Account files set identity + sendmail only. Source the default once, then
+# let folder-hooks re-apply the matching account whenever the mailbox
+# changes — sourcing both globally here would leave $from and $sendmail
+# pinned to whichever file was read last.
 source ~/.config/neomutt/accounts/gmail.muttrc
-source ~/.config/neomutt/accounts/other.muttrc
+folder-hook 'gmail' 'source ~/.config/neomutt/accounts/gmail.muttrc'
+folder-hook 'other' 'source ~/.config/neomutt/accounts/other.muttrc'
 set sidebar_visible = yes
 set sidebar_width = 22
 set mail_check_stats

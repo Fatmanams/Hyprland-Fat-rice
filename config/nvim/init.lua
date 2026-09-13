@@ -132,100 +132,110 @@ local mocha = {
   border    = "#313244",
 }
 
--- Pick which palette to drive highlights from.
+-- Pick which palette to drive highlights from, then apply every group.
 -- pywal16's colors-wal.vim defines: background, foreground, cursor, color0..15.
-local P
-if wal_enabled then
-  -- Map pywal's color0..15 onto the slots our highlight table uses.
-  -- color0  = bg-alt-ish (often near-black)
-  -- color1  = red
-  -- color2  = green
-  -- color3  = yellow
-  -- color4  = blue
-  -- color5  = magenta
-  -- color6  = cyan
-  -- color7  = fg-light
-  -- color8  = comment/dim
-  -- color9..15 = bright variants of 1..7
-  P = {
-    bg        = vim.g.background or mocha.bg,
-    bg_alt    = vim.g.color0     or mocha.bg_alt,
-    fg        = vim.g.foreground or mocha.fg,
-    red       = vim.g.color1     or mocha.red,
-    green     = vim.g.color2     or mocha.green,
-    yellow    = vim.g.color3     or mocha.yellow,
-    blue      = vim.g.color4     or mocha.blue,
-    magenta   = vim.g.color5     or mocha.magenta,
-    cyan      = vim.g.color6     or mocha.cyan,
-    comment   = vim.g.color8     or mocha.comment,
-    selection = vim.g.color8     or mocha.selection,
-    border    = vim.g.color0     or mocha.border,
-  }
-else
-  P = mocha
+-- Wrapped in a function so a FocusGained reload re-derives the palette and
+-- re-emits EVERY group — one mapping in one place, no drift between the
+-- startup path and the reload path.
+local function apply_palette()
+  local P
+  if wal_enabled then
+    -- Map pywal's color0..15 onto the slots our highlight table uses.
+    -- color0  = bg-alt-ish (often near-black)
+    -- color1  = red
+    -- color2  = green
+    -- color3  = yellow
+    -- color4  = blue
+    -- color5  = magenta
+    -- color6  = cyan
+    -- color7  = fg-light
+    -- color8  = comment/dim
+    -- color9..15 = bright variants of 1..7
+    P = {
+      bg        = vim.g.background or mocha.bg,
+      bg_alt    = vim.g.color0     or mocha.bg_alt,
+      fg        = vim.g.foreground or mocha.fg,
+      red       = vim.g.color1     or mocha.red,
+      green     = vim.g.color2     or mocha.green,
+      yellow    = vim.g.color3     or mocha.yellow,
+      blue      = vim.g.color4     or mocha.blue,
+      magenta   = vim.g.color5     or mocha.magenta,
+      cyan      = vim.g.color6     or mocha.cyan,
+      comment   = vim.g.color8     or mocha.comment,
+      selection = vim.g.color8     or mocha.selection,
+      border    = vim.g.color0     or mocha.border,
+    }
+  else
+    P = mocha
+  end
+
+  vim.cmd("highlight clear")
+  vim.cmd("syntax on")
+
+  local hl = vim.api.nvim_set_hl
+  hl(0, "Normal",       { bg = P.bg, fg = P.fg })
+  hl(0, "NormalNC",     { bg = P.bg, fg = P.fg })
+  hl(0, "Comment",      { fg = P.comment, italic = true })
+  hl(0, "Constant",     { fg = P.yellow })
+  hl(0, "String",       { fg = P.green })
+  hl(0, "Identifier",   { fg = P.blue })
+  hl(0, "Function",     { fg = P.blue, bold = true })
+  hl(0, "Statement",    { fg = P.magenta })
+  hl(0, "Operator",     { fg = P.fg })
+  hl(0, "PreProc",      { fg = P.blue })
+  hl(0, "Type",         { fg = P.cyan })
+  hl(0, "Special",      { fg = P.red })
+  hl(0, "Error",        { fg = P.red, bg = P.bg, bold = true })
+  hl(0, "Todo",         { fg = P.yellow, bg = P.bg, bold = true })
+  hl(0, "MatchParen",   { bg = P.selection })
+  hl(0, "LineNr",       { fg = P.comment })
+  hl(0, "CursorLine",   { bg = P.bg_alt })
+  hl(0, "CursorLineNr", { fg = P.yellow, bold = true })
+  hl(0, "Visual",       { bg = P.selection })
+  hl(0, "Search",       { bg = P.blue, fg = P.bg })
+  hl(0, "IncSearch",    { bg = P.yellow, fg = P.bg })
+  hl(0, "Pmenu",        { bg = P.bg_alt, fg = P.fg })
+  hl(0, "PmenuSel",     { bg = P.blue, fg = P.bg })
+  hl(0, "VertSplit",    { fg = P.border })
+  hl(0, "SignColumn",   { bg = P.bg })
+  hl(0, "StatusLine",   { bg = P.bg_alt, fg = P.fg, bold = true })
+  hl(0, "StatusLineNC", { bg = P.bg_alt, fg = P.comment })
+  hl(0, "TabLine",      { bg = P.bg_alt, fg = P.comment })
+  hl(0, "TabLineSel",   { bg = P.bg_alt, fg = P.fg, bold = true })
+  hl(0, "TabLineFill",  { bg = P.bg_alt })
+  hl(0, "NormalFloat",  { bg = P.bg_alt, fg = P.fg })
+  hl(0, "FloatBorder",  { fg = P.border, bg = P.bg_alt })
+
+  -- Plugin UI groups link into the palette above so the IDE layer follows
+  -- wal without shipping theme plugins (rule: no colorscheme plugins).
+  hl(0, "TelescopeNormal",   { link = "Normal" })
+  hl(0, "TelescopeBorder",   { link = "FloatBorder" })
+  hl(0, "TelescopeSelection",{ link = "CursorLine" })
+  hl(0, "NvimTreeNormal",    { link = "Normal" })
+  hl(0, "NvimTreeFolderName",{ fg = P.blue })
+  hl(0, "CmpItemAbbrMatch",  { fg = P.blue, bold = true })
+  hl(0, "CmpItemAbbrMatchFuzzy", { fg = P.blue, bold = true })
+  hl(0, "CmpItemKind",       { fg = P.cyan })
 end
 
--- Apply highlights. Same code regardless of which palette we picked.
-vim.cmd("highlight clear")
-vim.cmd("syntax on")
-
-local hl = vim.api.nvim_set_hl
-hl(0, "Normal",       { bg = P.bg, fg = P.fg })
-hl(0, "NormalNC",     { bg = P.bg, fg = P.fg })
-hl(0, "Comment",      { fg = P.comment, italic = true })
-hl(0, "Constant",     { fg = P.yellow })
-hl(0, "String",       { fg = P.green })
-hl(0, "Identifier",   { fg = P.blue })
-hl(0, "Function",     { fg = P.blue, bold = true })
-hl(0, "Statement",    { fg = P.magenta })
-hl(0, "Operator",     { fg = P.fg })
-hl(0, "PreProc",      { fg = P.blue })
-hl(0, "Type",         { fg = P.cyan })
-hl(0, "Special",      { fg = P.red })
-hl(0, "Error",        { fg = P.red, bg = P.bg, bold = true })
-hl(0, "Todo",         { fg = P.yellow, bg = P.bg, bold = true })
-hl(0, "MatchParen",   { bg = P.selection })
-hl(0, "LineNr",       { fg = P.comment })
-hl(0, "CursorLine",   { bg = P.bg_alt })
-hl(0, "CursorLineNr", { fg = P.yellow, bold = true })
-hl(0, "Visual",       { bg = P.selection })
-hl(0, "Search",       { bg = P.blue, fg = P.bg })
-hl(0, "IncSearch",    { bg = P.yellow, fg = P.bg })
-hl(0, "Pmenu",        { bg = P.bg_alt, fg = P.fg })
-hl(0, "PmenuSel",     { bg = P.blue, fg = P.bg })
-hl(0, "VertSplit",    { fg = P.border })
-hl(0, "SignColumn",   { bg = P.bg })
-hl(0, "StatusLine",   { bg = P.bg_alt, fg = P.fg, bold = true })
-hl(0, "StatusLineNC", { bg = P.bg_alt, fg = P.comment })
-hl(0, "TabLine",      { bg = P.bg_alt, fg = P.comment })
-hl(0, "TabLineSel",   { bg = P.bg_alt, fg = P.fg, bold = true })
-hl(0, "TabLineFill",  { bg = P.bg_alt })
-hl(0, "NormalFloat",  { bg = P.bg_alt, fg = P.fg })
-hl(0, "FloatBorder",  { fg = P.border, bg = P.bg_alt })
+apply_palette()
 
 -- Preset switches replace colors-wal.vim while nvim may remain open.
--- Reapply the shared Vimscript palette when the editor regains focus.
+-- Re-derive and re-apply the full palette when the editor regains focus.
 vim.api.nvim_create_autocmd("FocusGained", {
   callback = function()
+    -- wal may run for the first time after nvim started (cold boot).
+    if not wal_enabled and vim.fn.filereadable(wal_vim_path) == 1 then
+      wal_enabled = true
+    end
     local current_mtime = vim.fn.getftime(wal_vim_path)
-    if current_mtime > 0 and current_mtime ~= wal_mtime then
+    if wal_enabled and current_mtime > 0 and current_mtime ~= wal_mtime then
       vim.cmd("source " .. wal_vim_path)
-      vim.cmd("source " .. vim.fn.expand("~/.config/nvim/theme-reload.vim"))
+      apply_palette()
       wal_mtime = current_mtime
     end
   end,
 })
-
--- Plugin UI groups link into the palette above so the IDE layer follows
--- wal without shipping theme plugins (rule: no colorscheme plugins).
-hl(0, "TelescopeNormal",   { link = "Normal" })
-hl(0, "TelescopeBorder",   { link = "FloatBorder" })
-hl(0, "TelescopeSelection",{ link = "CursorLine" })
-hl(0, "NvimTreeNormal",    { link = "Normal" })
-hl(0, "NvimTreeFolderName",{ fg = P.blue })
-hl(0, "CmpItemAbbrMatch",  { fg = P.blue, bold = true })
-hl(0, "CmpItemAbbrMatchFuzzy", { fg = P.blue, bold = true })
-hl(0, "CmpItemKind",       { fg = P.cyan })
 
 -- ---- Statusline (no plugin) ------------------------------------------------
 local function statusline()

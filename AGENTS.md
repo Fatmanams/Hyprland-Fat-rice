@@ -112,10 +112,10 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │                              btrfs/snapper vs other/Timeshift branch
 └── config/
     ├── hypr/
-    │       ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
-    │   ├── keybinds-extra.conf  user-editable launch keys and command assignments
-    │       ├── hyprpaper.conf      static wallpaper FALLBACK config (all outputs by default)
-    ├── start-mpvpaper.sh   per-output animated wallpaper launcher
+    │   ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
+    │   ├── keybinds-extra.conf user-editable launch keys and command assignments
+    │   ├── hyprpaper.conf      static wallpaper FALLBACK config (all outputs by default)
+    │   ├── start-mpvpaper.sh   per-output animated wallpaper launcher
     │   ├── hypridle.conf       idle / lock / suspend listeners
     │   ├── switch-theme.sh     preset palette switcher (SUPER+SHIFT+T cycles)
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/   pre-generated pywal-format palettes
@@ -138,8 +138,6 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── vdirsyncer/                 Google Calendar sync config example
     ├── isync/                      Maildir synchronization config
     ├── msmtp/                      SMTP sending config
-    ├── ai-tools/                   terminal AI tool launch commands
-    ├── obs-studio + audacity       official-repo recording applications
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}
@@ -213,7 +211,7 @@ by `.github/workflows/lint.yml`):
    ```
    bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
        config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
-       config/ghostty/ghostty-theme.sh
+       config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -324,7 +322,7 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    hand-edit files inside `~/.cache/wal/` (they're regenerated); when
    adding a preset, keep all eight file formats (colors-waybar.css,
    colors-rofi.rasi, colors-wal.vim, colors.el, colors.sh,
-   colors-zed.json, colors-hyprland.conf) in sync AND
+   colors-zed.json, colors-hyprland.conf, colors-neomutt.muttrc) in sync AND
    listed in `switch-theme.sh`'s `cp -f` — a format missing from either
    place leaves that consumer on a stale palette after a switch; VLC
    stays unthemed by design — every other in-session component follows

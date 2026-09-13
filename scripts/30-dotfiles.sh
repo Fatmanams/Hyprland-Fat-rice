@@ -35,11 +35,14 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
-# Mail transport/sync configs contain user addresses and are installed from
-# public examples only. Never overwrite an existing personalized config.
+# Mail transport/sync configs and Neomutt account files contain user
+# addresses — installed from the public examples only, and never
+# overwrite an existing personalized copy.
 for pair in \
     "msmtp/config" \
-    "isync/mbsyncrc"; do
+    "isync/mbsyncrc" \
+    "neomutt/accounts/gmail.muttrc" \
+    "neomutt/accounts/other.muttrc"; do
     target="$HOME/.config/$pair"
     example="$HOME/.config/${pair}.example"
     if [[ ! -f "$target" && -f "$example" ]]; then

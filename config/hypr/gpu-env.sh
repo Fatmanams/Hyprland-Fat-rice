@@ -56,7 +56,6 @@ VENDOR=$(gpu_vendor)
 # single-GPU box it can point apps at a render node that doesn't exist, so
 # only export it when lspci reports more than one GPU controller.
 gpu_count=$(printf '%s\n' "$pci" | grep -cEi '(VGA compatible controller|3D controller|Display controller)' || true)
-unset DRI_PRIME
 if [ "$gpu_count" -gt 1 ]; then
     export DRI_PRIME=1                          # honour PRIME offload (hybrid laptops/desktops)
 fi

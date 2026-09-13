@@ -23,15 +23,20 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 
 HYPR_CFG="$HOME/.config/hypr"
 
-echo "==> [1/8] Monitor layout"
-# The wildcard layout is valid for multi-monitor systems. Explicit layouts
-# are also valid when users need per-output mode, position, scale, or rotation.
-monitor_layout=$(grep -E '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf" 2>/dev/null || true)
-wallpaper_layout=$(grep -E '^wallpaper = ,[[:space:]]' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
-if [[ -n "$monitor_layout" || -n "$wallpaper_layout" ]]; then
-    pass "multi-monitor wildcard layout is active"
+echo "==> [1/8] Monitor and wallpaper layout"
+# Wildcard and explicit layouts are both valid; what must never happen is
+# a hyprland.conf with no monitor= line or a hyprpaper.conf with no
+# wallpaper rule — that means the configs are broken or missing, not
+# customized.
+if grep -qE '^monitor=' "$HYPR_CFG/hyprland.conf" 2>/dev/null \
+        && grep -qE '^wallpaper\s*=' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null; then
+    if grep -qE '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf"; then
+        pass "monitor layout present (wildcard: every output, preferred mode)"
+    else
+        pass "monitor layout present (explicit per-output lines)"
+    fi
 else
-    pass "explicit monitor and wallpaper layouts are configured"
+    fail "hyprland.conf or hyprpaper.conf missing/broken (no monitor= or wallpaper= line)"
 fi
 
 echo "==> [2/8] GPU driver sanity"
