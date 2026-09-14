@@ -55,6 +55,7 @@ apply() {
     # formats (see config/ghostty/ghostty-theme.sh). Never let a hook
     # hiccup abort the rest of the switch.
     "$HOME/.config/ghostty/ghostty-theme.sh" || true
+    "$HOME/.config/ox/ox-theme.sh" || true
 
     echo "Theme applied: $name (running 'wal -i' returns to wallpaper mode)"
 

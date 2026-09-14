@@ -28,6 +28,8 @@
 #     vscode-langservers-extracted
 #                            https://aur.archlinux.org/vscode-langservers-extracted.git
 #     chkrootkit             https://aur.archlinux.org/chkrootkit.git
+#     ox-bin                 https://aur.archlinux.org/ox-bin.git
+#     neomacs-bin            https://aur.archlinux.org/neomacs-bin.git
 #
 #     (Zed is NATIVE AUR-only — no curl|bash installer, no official repo —
 #     so per the policy it goes through this same reviewed-makepkg pipeline.
@@ -219,6 +221,8 @@ PACKAGES=(
     mpvpaper
     vscode-langservers-extracted
     chkrootkit
+    ox-bin
+    neomacs-bin
 )
 
 for p in "${PACKAGES[@]}"; do

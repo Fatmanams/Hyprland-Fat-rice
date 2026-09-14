@@ -1,0 +1,7 @@
+# Neovide deliberately has no color settings here. It embeds Neovim, so the
+# existing ~/.config/nvim/init.lua remains the single pywal16 color source.
+fork = true
+frame = "full"
+idle = true
+tabs = true
+vsync = true

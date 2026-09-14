@@ -85,6 +85,9 @@ mkdir -p "$HOME/.cache/wal"
 # Offer the daily on-demand scan. clamonacc/on-access scanning is not
 # enabled because fanotify scanning on every file event costs performance.
 chmod +x "$HOME/.config/clamav/scan-targets.sh"
+chmod +x "$HOME/.config/croft/croft-launch.sh"
+chmod +x "$HOME/.config/ox/ox-theme.sh" "$HOME/.config/ox/ox-launch.sh"
+chmod +x "$HOME/.config/neomacs/neomacs-launch.sh"
 systemctl --user daemon-reload
 read -r -p "Enable the daily ClamAV user scan timer? [y/N] " enable_clamav
 if [[ "$enable_clamav" =~ ^[Yy]$ ]]; then
@@ -124,6 +127,7 @@ else
     # running `wal -i` later switches back to wallpaper mode.
     "$HOME/.config/hypr/switch-theme.sh" mocha
 fi
+"$HOME/.config/ox/ox-theme.sh"
 
 echo
 echo "==> Next steps:"

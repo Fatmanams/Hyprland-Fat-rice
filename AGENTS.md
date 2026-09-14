@@ -96,6 +96,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 .
 ├── AGENTS.md                    THIS file — read before editing
 ├── README.md                    user-facing readme
+├── .zed/tasks.json              repo-local Zed validation tasks
 ├── .gitignore
 ├── .gitattributes               forces LF on all text files (target is Linux)
 ├── scripts/
@@ -127,6 +128,10 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     │   │                       nvim-tree), pywal-driven colors, FATS/SUPER kept
     │   └── lazy-lock.json      pinned plugin commits (lazy.nvim-generated,
     │                           committed; see editor plugin rule)
+    ├── croft/                  optional terminal editor launcher
+    ├── neovide/                GPU Neovim GUI config; inherits nvim's pywal palette
+    ├── ox/                     Ox TUI config template + pywal renderer/launcher
+    ├── neomacs/                optional GPU Emacs launcher; reuses config/emacs/init.el
     ├── emacs/
     │   └── init.el             OPT-IN single-file Emacs config; pywal-driven,
     │                           no package manager; eglot auto-starts via
@@ -150,7 +155,9 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── MangoHud/MangoHud.conf
     ├── zed/settings.json      theme "Pywal" (wal-generated colors-zed.json,
     │                          symlinked by 30-dotfiles.sh into
-    │                          ~/.config/zed/themes/pywal.json) + Nerd font;
+    │                          ~/.config/zed/themes/pywal.json) + Nerd font,
+    │                          diagnostics, inlay hints, project panel,
+    │                          terminal, and save behavior;
     │                          vim_mode left unset (off) — F2 toggles it
     ├── zed/keymap.json        F2 -> workspace::ToggleVimMode (native vim
                                mode, no extension), matching nvim/Emacs's
@@ -211,7 +218,9 @@ by `.github/workflows/lint.yml`):
    ```
    bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
        config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
-       config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
+       config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh \
+       config/croft/croft-launch.sh config/ox/ox-theme.sh \
+       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -237,7 +246,8 @@ coverage if it isn't already (CI catches it otherwise).
 | Add/remove a pywal-driven tool                | `config/hypr/hyprland.conf` (exec-once) + `config/<tool>/`    |
 | Change cursor theme or size                   | `config/hypr/hyprland.conf` (`env = XCURSOR_*`, `HYPRCURSOR_*`) |
 | Switch from ghostty to kitty / alacritty      | `config/hypr/hyprland.conf` (`$terminal = ...`)              |
-| Change the code editor                        | `config/hypr/hyprland.conf` (`$editor`, `bind = $mod, E`) + `config/applications/zed-handler.desktop` (or replace with new one) |
+| Change the code editor                        | `config/hypr/hyprland.conf` (`$editor`, editor binds) + `config/applications/zed-handler.desktop` |
+| Change editor launchers                      | `config/hypr/keybinds-extra.conf` and the relevant `config/<editor>/` directory |
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |

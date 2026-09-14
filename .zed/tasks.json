@@ -1,0 +1,37 @@
+[
+  {
+    "label": "Repo: Bash syntax",
+    "command": "bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "Repo: JSON validation",
+    "command": "set -e; for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do sed '/^\\/\\//d' \"$f\" | jq empty; done; sed '/^\\/\\//d' config/wlogout/layout | jq -s empty",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "Repo: Theme contract",
+    "command": "set -e; for d in config/hypr/themes/*/; do for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do test -f \"$d$f\"; done; done; for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do grep -q \"$f\" config/hypr/switch-theme.sh; done",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "Repo: Diff check",
+    "command": "git diff --check",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "Repo: Full lint",
+    "command": "bash -c 'set -e; bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh; for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do sed \"/^\\/\\//d\" \"$f\" | jq empty; done; sed \"/^\\/\\//d\" config/wlogout/layout | jq -s empty; git diff --check'",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  }
+]
