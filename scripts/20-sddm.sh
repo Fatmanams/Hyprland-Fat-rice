@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 20-sddm.sh — install sddm-astronaut-theme per policy rule #4.
+# 20-sddm.sh — install the static sddm-astronaut-theme asset directly.
 #
 # This is a static asset repo (QML/JS/CSS for the SDDM greeter), no
 # compile step. Bare git clone straight from upstream into

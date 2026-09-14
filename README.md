@@ -3,11 +3,12 @@
 # linux-rice
 
 **A reviewable Hyprland dotfiles + installer set for Arch Linux.**
-Single monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
-No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU-native
+Multi-monitor · GPU-agnostic (NVIDIA / Intel / AMD) · btrfs **or** ext4 root
+No `curl | bash` installers · performance-first builds · source compilation
+only when it is expected to help
 
 [Components](#whats-in-this-rice) —
-[AUR audit](#aur-only-packages--full-up-front-audit-policy-rule-5) —
+[Source-built packages](#source-built-package-inventory) —
 [Install](#installation-steps) —
 [First-boot TODOs](#mandatory-first-boot-todos) —
 [Tree](#tree)
@@ -19,7 +20,7 @@ No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU
 ## Contents
 
 - [What's in this rice](#whats-in-this-rice)
-- [AUR-only packages — full up-front audit](#aur-only-packages--full-up-front-audit-policy-rule-5)
+- [Source-built package inventory](#source-built-package-inventory)
 - [Themes (wallpaper mode + 4 presets)](#themes-wallpaper-mode--4-presets)
 - [GPU compatibility](#gpu-compatibility-nvidia--intel--amd-same-config)
 - [Step 0: installing Arch itself](#step-0-installing-arch-itself-archinstall-from-the-iso)
@@ -29,19 +30,20 @@ No AUR helpers by default · no `curl | bash` · what's compiled is compiled CPU
 - [Snapshots (btrfs / ext4)](#snapshots-btrfs---snapper-anything-else---timeshift-rsync)
 - [Code editor setup (Zed, Neovim, Ghostty)](#code-editor-setup-zed-neovim-ghostty)
 - [Gaming launch-option recipes](#steam--wine--proton-launch-option-recipes-gaming-set)
-- [Package policy](#package-policy-kept-reference-only-here-so-the-rules-are-visible)
+- [Performance compilation policy](#performance-compilation-policy)
 - [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
 - [Tree](#tree)
 - [License](#license)
 
 ---
 
-A personal Hyprland rice for a single-monitor AMD/Intel Arch Linux box.
-Install is staged into reviewable scripts; AUR-only packages go through
-PKGBUILD review → plain `makepkg` → `repo-add` → install from local repo
-exactly. AUR helpers (paru/yay) are permitted by policy but the reviewed
-pipeline is what the scripts use; `curl | bash` installers are banned,
-and everything the rice compiles builds CPU-native (`-march=native`).
+A personal Hyprland rice for AMD/Intel/NVIDIA Arch Linux desktops,
+including laptops, docks, and multi-monitor setups.
+Install is staged into reviewable scripts with no `curl | bash`
+installers. Packages are compiled from source only when a measurable
+performance benefit is expected; otherwise the simplest reliable package
+source is used. The packages this rice does compile use CPU-native flags
+(`-march=native`).
 
 ## What's in this rice
 
@@ -65,15 +67,19 @@ and everything the rice compiles builds CPU-native (`-march=native`).
 | Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
+| Email / calendar | neomutt + khal + vdirsyncer | pacman (extra) | Neomutt mail, ikhal calendar, Google Calendar sync |
+| AI coding tools | Claude Code + DeepSeek Harness + Kilo Code | user-installed CLIs | Terminal launch bindings; credentials stay in each tool's own config |
 | HTML/CSS/JSON LSP | vscode-langservers-extracted | **AUR — makepkg'd** | the only LSP not in official repos |
 | Browser          | helium-browser       | **AUR — helium-browser-bin** | default; xdg-mime default for http(s)/ftp/html |
 | Media player     | vlc                  | pacman (extra)          | default for video/audio MIME types; ships `config/vlc/vlcrc` (deliberately minimal — decoding and snapshot dir left on VLC's defaults, see file comments) |
+| Screen recorder  | obs-studio            | pacman (extra)          | open-source Wayland-capable recording and streaming; SUPER+SHIFT+O |
+| Audio recorder   | audacity              | pacman (extra)          | GPL audio waveform recorder/editor; SUPER+SHIFT+U |
 | URL resolver     | yt-dlp               | pacman (extra)          | YouTube et al. -> direct stream URL for vlc-open (SUPER+SHIFT+M); vlc's own youtube.lua is NOT trusted (breaks on every YT player change) |
 | Live resolver    | streamlink           | pacman (extra)          | Twitch/live streams; drives VLC itself via `--player vlc` |
 | TUI file mgr     | yazi                 | pacman (extra)          | SUPER+SHIFT+E |
 | GUI file mgr     | thunar               | pacman (extra)          | SUPER+SHIFT+F; +gvfs +tumbler +thunar-archive-plugin |
 | Display manager  | sddm                 | pacman (extra)          |       |
-| SDDM theme       | sddm-astronaut-theme | **bare git clone**      | rule #4: no build step, cloned straight into /usr/share/sddm/themes |
+| SDDM theme       | sddm-astronaut-theme | **bare git clone**      | static-asset policy: no build step, cloned straight into /usr/share/sddm/themes |
 | GTK theming GUI  | nwg-look             | pacman (extra)          |       |
 | Qt theming       | kvantum / kvantum-qt5 | pacman (extra)         |       |
 | Gaming           | gamemode mangohud lib32-mangohud steam | pacman (extra/multilib) | steam installed by 00-base.sh (multilib) |
@@ -81,18 +87,31 @@ and everything the rice compiles builds CPU-native (`-march=native`).
 | Password manager | bitwarden            | pacman (extra)          | SUPER+V; org.freedesktop.secrets covered by gnome-keyring (already installed) |
 | Bluetooth        | bluez bluez-utils blueman | pacman (extra)     | bluetooth.service enabled by 00-base.sh; blueman-applet autostarts into waybar's tray |
 | Firewall         | ufw                  | pacman (extra)          | default deny incoming / allow outgoing, enabled by 00-base.sh |
-| Antivirus        | clamav               | pacman (extra)          | on-demand `clamscan`; clamav-freshclam.service (enabled by 00-base.sh) keeps the signature DB current |
+| Antivirus        | clamav + chkrootkit  | pacman (extra) + AUR   | daily on-demand `clamscan`; `chkrootkit` is run manually; freshclam keeps signatures current |
 | MAC / shields    | apparmor             | pacman (extra)          | LSM mandatory access control; inert until the kernel cmdline opt-in — first-boot TODO #4 |
 | Per-app sandbox  | firejail             | pacman (extra)          | wrap a single app: `firejail <cmd>`; profiles in /etc/firejail |
 | Snapshots        | snapper / timeshift + cronie | pacman (extra)   | picked by root fs — btrfs gets snapper, anything else gets Timeshift RSYNC (`45-snapshots.sh`) |
-
-
 ---
 
-## AUR-only packages — full up-front audit (policy rule #5)
+### Antivirus and rootkit checks
 
-These are the **only** packages built from AUR. Anything else is in
-official Arch repos and installed by `scripts/00-base.sh`.
+`00-base.sh` installs official-repository ClamAV and `libnotify`, enables
+`clamav-freshclam.service`, and `30-dotfiles.sh` enables a daily user timer
+that scans `~/Downloads`, the existing `~/Mail/gmail` and `~/Mail/other`
+Maildirs, and discovered mounted Windows `Users` directories. Results are
+reported through SwayNC via `notify-send`; detections and scan errors use
+critical urgency. Logs remain in `~/.cache/clamav-scan.log`.
+
+`chkrootkit` is AUR-only and is handled by the reviewed `10-aur.sh` pipeline.
+Run `sudo chkrootkit` manually when a rootkit check is needed. The optional
+`clamonacc` fanotify layer is intentionally not enabled because it scans file
+events continuously; this rice does not enable on-access scanning by default.
+
+## Source-built package inventory
+
+These are the packages currently handled by the reviewed source-build
+workflow. Other packages use the normal distribution install path unless
+there is a documented performance reason to add them here.
 
 | Package                | AUR URL                                  | Build notes                                                      |
 |------------------------|------------------------------------------|------------------------------------------------------------------|
@@ -115,6 +134,57 @@ repos** — these are installed by `scripts/00-base.sh`, **not** built:
 - `cliphist` — in `extra`
 - `nwg-look` — in `extra`
 - `kvantum` and `kvantum-qt5` — in `extra`
+
+### Mail and calendar setup
+
+`30-dotfiles.sh` copies the account examples into
+`~/.config/neomutt/accounts/` (and the msmtp/isync examples into their
+real config names) only when no real file exists yet — local
+personalization is never overwritten. Replace the placeholders after
+install; the real files are gitignored. The Gmail account uses OAuth2
+through Neomutt's packaged `mutt_oauth2.py`: locate it with
+`pacman -Ql neomutt | grep oauth2`, copy it to
+`~/.config/neomutt/oauth/mutt_oauth2.py` (the path the example configs
+reference), and authorize the token alongside it.
+
+The public `~/.config/msmtp/config.example` and
+`~/.config/isync/mbsyncrc.example` follow the same copy-if-absent rule
+and are installed mode 600. Neomutt signing is
+disabled until `YOUR_GPG_KEY_ID_HERE` is replaced with a real key and
+`crypt_autosign` is explicitly enabled.
+Folder-hooks re-source the matching account file when a mailbox is
+opened, so `from`/`sendmail` always follow the mailbox you're in and
+outgoing mail uses the reviewed local msmtp configuration.
+
+Copy `~/.config/vdirsyncer/config.example` to
+`~/.config/vdirsyncer/config`, add the separate Google Calendar OAuth
+client credentials, then run `vdirsyncer discover google_calendar`.
+`30-dotfiles.sh` offers to enable the ClamAV timer and enables the calendar
+timer only once this real config exists.
+
+### AI coding tools
+
+The Hyprland config provides terminal launch bindings for locally
+installed AI coding tools:
+
+- `SUPER+SHIFT+A` — Claude Code (`claude`)
+- `SUPER+SHIFT+D` — DeepSeek Harness (`deepseek-harness`)
+- `SUPER+SHIFT+I` — Kilo Code (`kilo`)
+
+These tools are intentionally not installed by the rice. Set the
+`$claude_command`, `$deepseek_command`, or `$kilo_command` variables in
+`~/.config/hypr/keybinds-extra.conf` if a local installation uses a different
+command name. API keys and authentication remain in each tool's own
+credential store and are not committed here.
+
+### Keybind customization
+
+All user-editable launch keys and command names are grouped at the top
+of `config/hypr/keybinds-extra.conf`, which is copied to
+`~/.config/hypr/keybinds-extra.conf`. Change a `$key_*` value to move a
+shortcut or a `$_command` value to match a locally installed executable.
+Reload with `hyprctl reload` or `SUPER+SHIFT+C`. The main
+`hyprland.conf` keeps the complete categorized reference list.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"
@@ -136,9 +206,9 @@ wallpaper the rice uses one of four shipped static presets —
 file formats under `config/hypr/themes/`, so every themed component —
 waybar, swaync, rofi, eww, wlogout, nvim, emacs, ghostty, zed, and
 Hyprland's own window borders — picks them up unchanged. Each preset
-dir carries all seven formats the rice consumes: `colors-waybar.css`,
+dir carries all eight formats the rice consumes: `colors-waybar.css`,
 `colors-rofi.rasi`, `colors-wal.vim`, `colors.el`, `colors.sh`,
-`colors-zed.json`, `colors-hyprland.conf`.
+`colors-zed.json`, `colors-hyprland.conf`, `colors-neomutt.muttrc`.
 
 Switching:
 
@@ -316,10 +386,10 @@ chmod +x scripts/*.sh
 
 # 2. AUR builds — reviewed PKGBUILD, plain makepkg (build only),
 #    repo-add into your local repo at /var/cache/pacman/localrepo,
-#    then pacman -S from there. No AUR helpers. Pause+review each.
+#    then pacman -S from there. Pause+review each source build.
 ./scripts/10-aur.sh
 
-# 3. SDDM theme — bare git clone per policy rule #4. Snapshots the
+# 3. SDDM theme — bare git clone for the static asset. Snapshots the
 #    old SDDM state first, then clones Keyitdev's sddm-astronaut-theme
 #    into /usr/share/sddm/themes/sddm-astronaut-theme and addresses
 #    Current= in a new conf.d/10-theme.conf.
@@ -344,7 +414,7 @@ chmod +x scripts/*.sh
 # 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
 #    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all seven pywal formats, and the
+#    disk, every theme preset carrying all eight pywal formats, and the
 #    snapshot tooling live (snapper timers on btrfs, cronie otherwise —
 #    same branch 45-snapshots.sh took). Best run after one Hyprland
 #    session has booted.
@@ -359,20 +429,22 @@ You can run each script at most once. Reading them first is the point.
 
 Before the rice looks right:
 
-1. **Monitor name.** `hyprland.conf` ships with:
+1. **Monitor layout (optional for basic multi-monitor use).**
+   `hyprland.conf` ships with:
    ```
    monitor=,preferred,auto,1
    ```
-   Auto-detect is a **stopgap** per the upstream gotcha note. After your
-   first boot, run:
+   The wildcard applies the preferred mode to every connected output and
+   supports multiple monitors without hardcoded names. For custom modes,
+   positions, scale, or rotation, run:
    ```
    hyprctl monitors
    ```
-   and **edit `~/.config/hypr/hyprland.conf`'s monitor= line** with the
-   actual monitor name, mode, and refresh rate. Example for a 1440p/144Hz
-   DisplayPort display:
+   and replace the wildcard with one explicit `monitor=` line per output.
+   Example for a laptop plus a 1440p/144Hz DisplayPort display:
    ```
-   monitor=DP-1, 2560x1440@144, 0x0, 1
+   monitor=eDP-1, 1920x1080@60, 0x0, 1
+   monitor=DP-1, 2560x1440@144, 1920x0, 1
    ```
 
 2. **Wallpaper.** Drop a JPG at `~/.config/hypr/wallpaper.jpg`. This is
@@ -387,15 +459,16 @@ Before the rice looks right:
    rofi) for their color palettes.
 
    **Animated wallpaper (mpvpaper, the default):** also drop a looping
-   video at `~/.config/hypr/wallpaper.mp4`, and in `hyprland.conf`
-   replace `eDP-1` in the mpvpaper exec-once line with your monitor name
-   from `hyprctl monitors`. If you'd rather have a static wallpaper,
+   video at `~/.config/hypr/wallpaper.mp4`; the helper discovers every
+   connected output and starts one wallpaper instance per monitor. If
+   you'd rather have a static wallpaper,
    comment the mpvpaper line and uncomment the `exec-once = hyprpaper`
    line just below it.
 
-3. **Same edit in `~/.config/hypr/hyprpaper.conf`** — set the
-   `wallpaper = <monitor>, ~/.config/hypr/wallpaper.jpg` line's monitor
-   name to match `hyprctl monitors`.
+3. **Static wallpaper (optional per-monitor override).**
+   `hyprpaper.conf` uses `wallpaper = , ...` to cover every output. Replace
+   it with one `wallpaper = <monitor>, ...` line per monitor if displays
+   need different images.
 
 4. **AppArmor (only if you want the "shields" actually on).** The
    `apparmor` package is installed by `00-base.sh` but the LSM is INERT
@@ -668,24 +741,19 @@ CPU/GPU stats, RAM, VRAM, swap, histogram, and is toggleable with
 
 ---
 
-## Package policy (kept reference-only here so the rules are visible)
+## Performance compilation policy
 
-1. **Official repos first.** If it's in `pacman -S`, that's where it comes from.
-2. **No `curl | bash` installers** anywhere, including upstream one-liner
-   install scripts. AUR helpers (paru/yay) are tolerated per user
-   policy, but the scripts keep the reviewed pipeline below — the
-   human-review step is the point.
-3. **AUR-only packages**: pull PKGBUILD, print it, **read it in full**
-   (look for `curl | bash`, post_registration wget, suspicious source
-   URLs), build with plain `makepkg` (no `-si`, build only), `repo-add`
-   the resulting `.pkg.tar.zst` to a local repo, then `pacman -S` from
-   that repo. `scripts/10-aur.sh` implements exactly this.
-4. **Static-asset/no-build repos** (like sddm-astronaut-theme): plain
-   `git clone` straight from upstream into the documented install path,
-   no PKGBUILD wrapper manufactured. `scripts/20-sddm.sh` does this.
-5. **All AUR-only items listed up-front** so the review/build step is
-   visible before any build starts. The table at the top of this README
-   is the rule-5 audit for this build.
+The only package policy is: **compile from source when the result is
+expected to improve performance for this machine; otherwise use the
+simplest reliable distribution method.**
+
+The expected benefit must be concrete and workload-specific, such as
+native CPU flags, parallel compilation, or a native Rust target. AUR
+availability alone is not a reason to compile, and reliable prebuilt
+packages should not be replaced without an expected performance gain.
+The current scripts retain a reviewed AUR/local-repository workflow for
+the packages this rice chooses to compile, but that workflow is an
+implementation choice rather than an additional policy requirement.
 
 ### Build-speed tweaks (applied by `scripts/00-base.sh`)
 
@@ -708,10 +776,10 @@ CPU/GPU stats, RAM, VRAM, swap, histogram, and is toggleable with
   `xdg-desktop-portal-gtk` alongside it as fallback. Both are
   installed by `00-base.sh`; `hyprland.conf` explicitly starts both
   user services at session start.
-- **No blind auto-detected monitor= in hyprland.conf.** The shipped
-  `monitor=,preferred,auto,1` is a documented stopgap with explicit
-  TODO instructions to replace it from `hyprctl monitors` after first
-  boot (see "Mandatory first-boot TODOs" above).
+- **Multi-monitor defaults are intentionally wildcarded.** The shipped
+  `monitor=,preferred,auto,1` applies the preferred mode to every connected
+  output. Use `hyprctl monitors` and explicit per-output lines only when
+  custom modes, positions, scale, or rotation are needed.
 
 ---
 
@@ -818,12 +886,13 @@ linux-rice/
 │   └── 50-verify.sh                        read-only post-deploy health check (PASS/FAIL, never fixes)
 └── config/
     ├── hypr/
-    │   ├── hyprland.conf                   compositor config (monitor= TODO!)
-    │   ├── hyprpaper.conf                  static wallpaper FALLBACK (mpvpaper is default)
+    │   ├── hyprland.conf                   compositor config (multi-monitor wildcard)
+    │   ├── hyprpaper.conf                  static wallpaper FALLBACK (all outputs)
+    │   ├── start-mpvpaper.sh               one animated wallpaper process per output
     │   ├── hypridle.conf                   idle / lock / suspend listeners
-    │   ├── keybinds-extra.conf             empty by default; user-local bind additions
+    │   ├── keybinds-extra.conf             populated defaults; user-editable bind assignments
     │   ├── switch-theme.sh                 preset palette switcher (SUPER+SHIFT+T cycles)
-    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (six formats each)
+    │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (eight formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)
     ├── nvim/
     │   ├── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER

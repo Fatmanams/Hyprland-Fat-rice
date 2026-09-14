@@ -21,6 +21,12 @@
 
 gpu_env_loaded=0
 
+# Clear variables managed by this file so re-sourcing it after a hardware or
+# display-stack change cannot retain settings from the previous detection.
+unset DRI_PRIME __GL_THREADED_OPTIMIZATIONS __GL_GSYNC_ALLOWED __GL_VRR_ALLOWED
+unset VDPAU_DRIVER LIBVA_DRIVER_NAME MESA_SHADER_CACHE_DIR
+unset MESA_SHADER_CACHE_MAX_SIZE
+
 # ---- Detect vendor ------------------------------------------------------
 # One lspci call per shell start; vendor detection and the GPU-count check
 # below both grep this same capture.
@@ -31,13 +37,16 @@ fi
 
 gpu_vendor() {
     local line
-    line=$(printf '%s\n' "$pci" | grep -Ei ' VGA compatible controller: ' | head -n1)
-    case "$line" in
-        *NVIDIA*)                       echo nvidia ;;
-        *"Advanced Micro Devices"*)     echo amd   ;;
-        *Intel*)                         echo intel ;;
-        *)                               echo unknown ;;
-    esac
+    line=$(printf '%s\n' "$pci" | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
+    if printf '%s\n' "$line" | grep -qi NVIDIA; then
+        echo nvidia
+    elif printf '%s\n' "$line" | grep -qi 'Advanced Micro Devices'; then
+        echo amd
+    elif printf '%s\n' "$line" | grep -qi Intel; then
+        echo intel
+    else
+        echo unknown
+    fi
 }
 
 VENDOR=$(gpu_vendor)
@@ -46,7 +55,7 @@ VENDOR=$(gpu_vendor)
 # DRI_PRIME=1 only makes sense on PRIME/hybrid setups (iGPU + dGPU). On a
 # single-GPU box it can point apps at a render node that doesn't exist, so
 # only export it when lspci reports more than one GPU controller.
-gpu_count=$(printf '%s\n' "$pci" | grep -cEi ' VGA compatible controller: | 3D controller: ')
+gpu_count=$(printf '%s\n' "$pci" | grep -cEi '(VGA compatible controller|3D controller|Display controller)' || true)
 if [ "$gpu_count" -gt 1 ]; then
     export DRI_PRIME=1                          # honour PRIME offload (hybrid laptops/desktops)
 fi

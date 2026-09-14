@@ -35,6 +35,21 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
+# Mail transport/sync configs and Neomutt account files contain user
+# addresses — installed from the public examples only, and never
+# overwrite an existing personalized copy.
+for pair in \
+    "msmtp/config" \
+    "isync/mbsyncrc" \
+    "neomutt/accounts/gmail.muttrc" \
+    "neomutt/accounts/other.muttrc"; do
+    target="$HOME/.config/$pair"
+    example="$HOME/.config/${pair}.example"
+    if [[ ! -f "$target" && -f "$example" ]]; then
+        cp -a "$example" "$target"
+    fi
+done
+
 # config/applications/ only exists as the source for the .desktop install
 # below — it does NOT belong under ~/.config/ (nothing reads
 # ~/.config/applications/). Remove the stray copy the blanket cp made;
@@ -55,13 +70,37 @@ touch "$HOME/.config/hypr/keybinds-extra.conf"
 # the file is picked up immediately by xdg-mime and rofi.
 echo "==> Installing zed-handler.desktop into ~/.local/share/applications/"
 mkdir -p "$HOME/.local/share/applications"
-cp -f "$CFG_SRC/applications/zed-handler.desktop" "$HOME/.local/share/applications/" 2>/dev/null || true
+if [[ ! -f "$CFG_SRC/applications/zed-handler.desktop" ]]; then
+    echo "Expected $CFG_SRC/applications/zed-handler.desktop to exist."
+    exit 1
+fi
+cp -f "$CFG_SRC/applications/zed-handler.desktop" "$HOME/.local/share/applications/"
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || \
     echo "    (update-desktop-database not available — install desktop-file-utils)"
 
 # A couple of paths need to be created/written by tooling on first run;
 # make them now so nothing errors out.
 mkdir -p "$HOME/.cache/wal"
+
+# Offer the daily on-demand scan. clamonacc/on-access scanning is not
+# enabled because fanotify scanning on every file event costs performance.
+chmod +x "$HOME/.config/clamav/scan-targets.sh"
+systemctl --user daemon-reload
+read -r -p "Enable the daily ClamAV user scan timer? [y/N] " enable_clamav
+if [[ "$enable_clamav" =~ ^[Yy]$ ]]; then
+    systemctl --user enable --now clamav-scan.timer
+else
+    echo "    ClamAV timer left disabled; run systemctl --user enable --now clamav-scan.timer when ready."
+fi
+
+# Calendar sync is opt-in until the user fills the OAuth example.
+if [[ -f "$HOME/.config/vdirsyncer/config" ]]; then
+    systemctl --user daemon-reload
+    systemctl --user enable --now vdirsyncer-google.timer
+else
+    echo "    vdirsyncer config not present; copy config.example after adding OAuth credentials."
+fi
+chmod 600 "$HOME/.config/msmtp/config" "$HOME/.config/isync/mbsyncrc"
 
 # Zed follows the palette through a symlinked custom theme: wal renders
 # config/wal/templates/colors-zed.json into ~/.cache/wal/colors-zed.json,

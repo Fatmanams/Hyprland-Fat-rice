@@ -1,0 +1,8 @@
+[Unit]
+Description=Synchronize Google Calendar
+# The timer invokes this unit; run it manually with systemctl --user start
+# vdirsyncer-google.service when testing credentials.
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/vdirsyncer sync google_calendar

@@ -1,0 +1,17 @@
+# ikhal reads the filesystem calendar populated by vdirsyncer.
+# Named urwid colors inherit the terminal's pywal-repainted ANSI palette.
+[calendars]
+[[google]]
+path = ~/.calendars/google/*
+type = discover
+color = dark blue
+
+[locale]
+timeformat = %H:%M
+dateformat = %Y-%m-%d
+longdateformat = %Y-%m-%d
+datetimeformat = %Y-%m-%d %H:%M
+longdatetimeformat = %Y-%m-%d %H:%M
+
+[default]
+default_calendar = google

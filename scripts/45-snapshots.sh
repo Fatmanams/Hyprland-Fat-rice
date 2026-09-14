@@ -12,8 +12,8 @@
 #             BTRFS mode would just be snapper-with-a-GUI — on btrfs you
 #             already have the native tool above.)
 #
-# Both are official-repo (extra) packages — package policy rule 1,
-# nothing AUR. This script is the single place the btrfs-vs-ext4
+# Both are distribution packages. This script is the single place the
+# btrfs-vs-ext4
 # question is answered; if that policy ever changes, change both
 # branches here in lockstep.
 #
@@ -56,7 +56,9 @@ if [[ "$ROOT_FS" == "btrfs" ]]; then
         read -r -p "    Unmount, delete the EMPTY /.snapshots subvolume, create config, remount? [y/N] " yn
         if [[ "$yn" =~ ^[Yy]$ ]]; then
             sudo umount /.snapshots 2>/dev/null || true
-            sudo btrfs subvolume delete /.snapshots 2>/dev/null || sudo rm -rf /.snapshots
+            if ! sudo btrfs subvolume delete /.snapshots 2>/dev/null; then
+                sudo rmdir /.snapshots
+            fi
             sudo snapper -c root create-config /
             sudo mkdir -p /.snapshots
             # archinstall's fstab usually has a /.snapshots entry — remount it.

@@ -1,0 +1,20 @@
+# Copy to ~/.config/vdirsyncer/config and fill in a separate Calendar OAuth
+# client. Never commit the real client secret or token file.
+[general]
+status_path = "~/.vdirsyncer/status/"
+
+[pair google_calendar]
+a = "google_calendar_local"
+b = "google_calendar_remote"
+collections = ["from b"]
+
+[storage google_calendar_local]
+type = "filesystem"
+path = "~/.calendars/google/"
+fileext = ".ics"
+
+[storage google_calendar_remote]
+type = "google_calendar"
+token_file = "~/.vdirsyncer/google_calendar_token"
+client_id = "YOUR_CALENDAR_CLIENT_ID"
+client_secret = "YOUR_CALENDAR_CLIENT_SECRET"

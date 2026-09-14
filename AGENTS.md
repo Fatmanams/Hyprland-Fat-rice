@@ -6,43 +6,42 @@ is the contract the agent must follow.
 
 This rice is authored from a Windows box (file paths in commit messages
 / `git status` may show `D:\linux rice`) and pushed via `gh CLI`. It
-targets **Arch Linux** (single-monitor, GPU-agnostic NVIDIA/Intel/AMD).
+targets **Arch Linux** (multi-monitor, GPU-agnostic NVIDIA/Intel/AMD).
 Scripts run on Arch; do not assume Windows tools exist on the target.
 
 ---
 
-## Package policy (inviolable)
+## Package security and provenance policy
 
-1. **Official repos first.** If a package is in `pacman -S` (any repo:
-   core, extra, multilib), it comes from there. No building from source
-   when an official package exists.
-2. **No `curl | bash` installers**, ever — including upstream one-liner
-   install scripts (`curl -f https://zed.dev/install.sh | sh` is
-   forbidden; use the AUR pkg instead). AUR helpers (`paru`, `yay`) are
-   permitted per user direction, but the reviewed manual pipeline in
-   rule 3 stays the default in scripts: the review step is the point,
-   and a helper skips it.
-3. **AUR-only packages** go through `scripts/10-aur.sh`:
-   - `git clone https://aur.archlinux.org/<pkg>.git`
-   - print the full PKGBUILD with line numbers for human review
-   - scan for `curl|bash` / suspicious source URLs (`pastebin|ipfs|ngrok`)
-   - wait for explicit `[y/N]` confirmation before building
-   - `makepkg -Cso` (clean + sync deps + build, **NO `-i`** — build only)
-   - `repo-add` the produced `*.pkg.tar.zst` into the local repo at
-     `/var/cache/pacman/localrepo` (registered into `/etc/pacman.conf`
-     as `[localrepo]` with `SigLevel = Optional TrustAll`)
-   - install via `sudo pacman -S <pkg>` from that local repo
-4. **Static-asset / no-build repos** (like `sddm-astronaut-theme`) use a
-   bare `git clone` straight from upstream into the documented install
-   path (e.g. `/usr/share/sddm/themes/...`). Don't manufacture a PKGBUILD
-   wrapper when there's nothing to compile. `scripts/20-sddm.sh` is the
-   sole current example.
-5. **Up-front AUR-only audit.** Before any change that adds or removes
-   a package, scan the full package list and list every AUR-only
-   dependency in the PR description (or commit message, if pushing
-   direct) — so the review/build step is visible, never silent mid-task.
+**No `curl | bash` installers, ever** — including upstream one-liner
+install scripts. Every package addition or removal must include a
+mandatory up-front AUR audit: the pull request description must list
+every AUR-only dependency before the build review begins.
 
-### AUR-only packages currently in this build
+**Official repos first when no performance reason exists to compile
+instead.** Packages selected for source installation use the reviewed
+pipeline in `scripts/10-aur.sh`: clone the source, print and read the
+PKGBUILD in full, scan it for suspicious commands and URLs, require
+explicit confirmation, build with plain `makepkg` (no `-i`), and install
+the reviewed result through the local repository. Static assets with
+nothing to compile use a direct `git clone` into the documented path;
+they do not get a manufactured PKGBUILD.
+
+## Performance compilation policy
+
+Compile a package from source only when the result is expected to
+improve performance for this machine; otherwise use the simplest
+reliable distribution method.
+
+Performance claims should be concrete and local to the workload: CPU
+architecture flags, parallel builds, native Rust targets, or another
+measurable runtime benefit. Do not compile merely because a package is
+available in the AUR, and do not replace a reliable prebuilt package
+without an expected performance gain. The existing AUR pipeline remains
+the implementation used for packages this rice chooses to compile; the
+policy does not require every package to use that pipeline.
+
+### Packages currently handled by the source-build workflow
 
 `scripts/10-aur.sh` is the source of truth. As of last audit:
 
@@ -63,14 +62,10 @@ Scripts run on Arch; do not assume Windows tools exist on the target.
 |                        | eglot. npm registry tarball + sha256sum, `npm i -g` into `$pkgdir` |
 |                        | with the cache confined to `$srcdir`. No build(), no hooks. The    |
 |                        | rest of the LSP stack is official-repo (`00-base.sh` step 4).      |
+| `chkrootkit`           | AUR-only rootkit checker; review its PKGBUILD before approval.      |
 
-When a package leaves AUR for official repos (the trend), **remove it
-from `10-aur.sh` and add it to `00-base.sh`'s `pacman -S` list**. Don't
-keep building it from AUR "to be safe" — that violates rule #1.
-
-### Packages often mistaken for AUR-only (now in official repos)
-
-Do not add to `10-aur.sh` — they are already in `00-base.sh`:
+Packages that do not have a performance reason to be compiled remain
+in the normal distribution install set:
 `rofi-wayland`, `ghostty`, `swww`, `swaync`, `cliphist`, `nwg-look`,
 `kvantum`, `kvantum-qt5`, `gamemode`, `gamescope`, `mangohud`,
 `lib32-mangohud`, `python-pywal` (old fork — we use `pywal16` by choice).
@@ -81,20 +76,17 @@ Do not add to `10-aur.sh` — they are already in `00-base.sh`:
 
 - `/etc/makepkg.conf`: `MAKEFLAGS="-j$(nproc)"`
 - `/etc/makepkg.conf`: `CFLAGS`/`CXXFLAGS` retargeted to `-march=native`
-  and `RUSTFLAGS="-C target-cpu=native"` — the AUR set (10-aur.sh) is
-  everything this rice ever compiles from source, so that's where
-  "prefer compiled-and-native" is realized. pacman-installed binaries
-  are upstream-prebuilt generic x86-64 and stay that way (don't start
-  rebuilding official packages; that's a full source-distro, not a
-  rice).
-- `/etc/makepkg.conf`: `BUILDENV=(!distcc !color !ccache check !sign)` —
+  and `RUSTFLAGS="-C target-cpu=native"` for packages selected under the
+  performance compilation policy.
+- `/etc/makepkg.conf`: `BUILDENV=(!distcc !color ccache check !sign)` —
   `ccache` installed from pacman and wired into BUILDENV
 - Local repo at `/var/cache/pacman/localrepo`, name `localrepo`,
   registered into `/etc/pacman.conf` once by `10-aur.sh`'s
   `setup_local_repo()` function
 
 Do not invent a new build pipeline. Don't build ad-hoc in `/tmp`.
-Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
+Every selected source build goes through `scripts/10-aur.sh`'s
+`build_one()`; do not build ad hoc in `/tmp`.
 
 ---
 
@@ -120,13 +112,14 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
 │                              btrfs/snapper vs other/Timeshift branch
 └── config/
     ├── hypr/
-    │   ├── hyprland.conf       compositor config (monitor= is a STOPGAP TODO — see notes)
-    │   ├── hyprpaper.conf      static wallpaper FALLBACK config (mpvpaper is the default)
+    │   ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
+    │   ├── keybinds-extra.conf user-editable launch keys and command assignments
+    │   ├── hyprpaper.conf      static wallpaper FALLBACK config (all outputs by default)
+    │   ├── start-mpvpaper.sh   per-output animated wallpaper launcher
     │   ├── hypridle.conf       idle / lock / suspend listeners
     │   ├── switch-theme.sh     preset palette switcher (SUPER+SHIFT+T cycles)
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/   pre-generated pywal-format palettes
-    │   │                        (each carries ALL 5 formats: waybar.css, rofi.rasi,
-    │   │                         wal.vim, colors.el, colors.sh)
+    │   │                        (each carries all 8 formats, including colors-neomutt.muttrc)
     │   └── gpu-env.sh          NVIDIA/Intel/AMD auto-detect env shim (source from shell rc)
     ├── nvim/
     │   ├── init.lua            single-file nvim IDE config; lazy.nvim plugin
@@ -140,9 +133,16 @@ Every AUR-only build goes through `scripts/10-aur.sh`'s `build_one()`.
     │                           prog-mode-hook, core *-ts-mode remaps are
     │                           guarded by treesit-ready-p, F2 = FATS/SUPER
     ├── waybar/{config,style.css}
+    ├── neomutt/                    terminal email client + account examples
+    ├── khal/                       terminal calendar viewer
+    ├── vdirsyncer/                 Google Calendar sync config example
+    ├── isync/                      Maildir synchronization config
+    ├── msmtp/                      SMTP sending config
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi
     ├── eww/{eww.yuck,eww.scss}
+    ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
+    ├── systemd/user/             user timers, including the daily ClamAV scan
     ├── wlogout/{layout,style.css}
     ├── ghostty/
     │   ├── config               primary terminal; baked Mocha = pre-wal fallback
@@ -210,7 +210,8 @@ by `.github/workflows/lint.yml`):
    including the non-scripts .sh files it names explicitly):
    ```
    bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
-       config/vlc/vlc-open config/ghostty/ghostty-theme.sh
+       config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
+       config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -232,7 +233,7 @@ coverage if it isn't already (CI catches it otherwise).
 
 | You want to...                                | File to edit                                                 |
 |-----------------------------------------------|--------------------------------------------------------------|
-| Change keybinds                               | `config/hypr/hyprland.conf`                                  |
+| Change keybinds                               | `config/hypr/keybinds-extra.conf` for launch shortcuts; `hyprland.conf` for compositor/workspace bindings |
 | Add/remove a pywal-driven tool                | `config/hypr/hyprland.conf` (exec-once) + `config/<tool>/`    |
 | Change cursor theme or size                   | `config/hypr/hyprland.conf` (`env = XCURSOR_*`, `HYPRCURSOR_*`) |
 | Switch from ghostty to kitty / alacritty      | `config/hypr/hyprland.conf` (`$terminal = ...`)              |
@@ -240,6 +241,8 @@ coverage if it isn't already (CI catches it otherwise).
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
+| Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
+| Change recording applications                | `scripts/00-base.sh` + `config/hypr/keybinds-extra.conf` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
 | Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |
 | Edit gaming HUD defaults                      | `config/MangoHud/MangoHud.conf`                              |
@@ -317,9 +320,9 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    `~/.cache/wal/current-theme`. Rules: presets are applied ONLY via the
    switcher; `wal -i` still wins whenever `wallpaper.jpg` exists; never
    hand-edit files inside `~/.cache/wal/` (they're regenerated); when
-   adding a preset, keep all seven file formats (colors-waybar.css,
+   adding a preset, keep all eight file formats (colors-waybar.css,
    colors-rofi.rasi, colors-wal.vim, colors.el, colors.sh,
-   colors-zed.json, colors-hyprland.conf) in sync AND
+   colors-zed.json, colors-hyprland.conf, colors-neomutt.muttrc) in sync AND
    listed in `switch-theme.sh`'s `cp -f` — a format missing from either
    place leaves that consumer on a stale palette after a switch; VLC
    stays unthemed by design — every other in-session component follows
@@ -368,22 +371,21 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
 
 ## Monitor + wallpaper contract (must NOT regress)
 
-- `config/hypr/hyprland.conf` ships with `monitor=,preferred,auto,1`
-  — this is a **documented stopgap**, not the committed config. **Do
-  not** commit a "real" value; the user is expected to run
-  `hyprctl monitors` after first boot and replace it. The README's
-  "Mandatory first-boot TODOs" section is the contract.
-- `config/hypr/hyprpaper.conf` ships with `wallpaper = eDP-1, ...`
-  where `eDP-1` is a placeholder. Same deal — user replaces with the
-  real monitor name. **Don't** run `hyprctl monitors` from a script to
-  auto-fill the line; the stopgap is intentional.
+- `config/hypr/hyprland.conf` ships with `monitor=,preferred,auto,1`,
+  which applies the preferred mode to every connected output. Users may
+  replace it with one explicit `monitor=` line per output for custom
+  positions, modes, scale, or rotation. Do not hardcode a
+  machine-specific layout in the repository.
+- `config/hypr/hyprpaper.conf` ships with `wallpaper = , ...`, applying one
+  image to every output. Users may replace it with per-monitor wallpaper
+  lines; do not hardcode machine-specific output names.
 - The wallpaper path `~/.config/hypr/wallpaper.jpg` is a TODO the user
   fills in after `30-dotfiles.sh` runs. **Don't** vendor a wallpaper
   binary into this repo.
-- Animated wallpaper: `hyprland.conf` starts **mpvpaper** (AUR) pointed
-  at `~/.config/hypr/wallpaper.mp4` — also a user-side TODO, same rules:
-  `eDP-1` in the mpvpaper line is a placeholder for the real monitor
-  name, **don't** auto-fill it, **don't** vendor a video binary.
+- Animated wallpaper: `hyprland.conf` starts `start-mpvpaper.sh`, which
+  discovers connected outputs at runtime and launches one **mpvpaper**
+  (AUR) process per output for `~/.config/hypr/wallpaper.mp4`. The video is
+  a user-side TODO; do not vendor it.
   `hyprpaper` stays installed and wired as the commented fallback line;
   `hyprpaper.conf` is the static-fallback config. Keep both paths
   working — swapping between them must stay a one-line comment toggle.

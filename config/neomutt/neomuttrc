@@ -1,0 +1,29 @@
+# Main Neomutt config. Keep real account files local; only .example files
+# belong in this repository. Colors come from the active pywal preset.
+source ~/.cache/wal/colors-neomutt.muttrc
+set mbox_type = Maildir
+set folder = ~/Mail
+set spoolfile = "+gmail/Inbox"
+mailboxes "+gmail/Inbox" "+other/Inbox"
+# Account files set identity + sendmail only. Source the default once, then
+# let folder-hooks re-apply the matching account whenever the mailbox
+# changes — sourcing both globally here would leave $from and $sendmail
+# pinned to whichever file was read last.
+source ~/.config/neomutt/accounts/gmail.muttrc
+folder-hook 'gmail' 'source ~/.config/neomutt/accounts/gmail.muttrc'
+folder-hook 'other' 'source ~/.config/neomutt/accounts/other.muttrc'
+set sidebar_visible = yes
+set sidebar_width = 22
+set mail_check_stats
+bind index,pager \Cp sidebar-prev
+bind index,pager \Cn sidebar-next
+bind index,pager \Co sidebar-open
+bind index,pager j next-line
+bind index,pager k previous-line
+set editor = "nvim"
+set index_format = "%4C %Z %{%b %d} %-20.20L %s"
+set crypt_use_gpgme = yes
+# Signing is opt-in: replace the placeholder key before enabling it.
+set crypt_autosign = no
+set crypt_opportunistic_encrypt = yes
+set pgp_default_key = "YOUR_GPG_KEY_ID_HERE"

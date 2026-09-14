@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 10-aur.sh — AUR-only packages, built per policy rule #3:
+# 10-aur.sh — source-built packages using the reviewed AUR workflow:
 #   * Pull each AUR repo by git clone (no AUR helper).
 #   * Print the full PKGBUILD to stdout for human review (read it!).
 #   * Wait for explicit confirmation before building.
@@ -27,6 +27,7 @@
 #     mpvpaper               https://aur.archlinux.org/mpvpaper.git
 #     vscode-langservers-extracted
 #                            https://aur.archlinux.org/vscode-langservers-extracted.git
+#     chkrootkit             https://aur.archlinux.org/chkrootkit.git
 #
 #     (Zed is NATIVE AUR-only — no curl|bash installer, no official repo —
 #     so per the policy it goes through this same reviewed-makepkg pipeline.
@@ -93,6 +94,7 @@ BUILDROOT="${BUILDROOT:-$HOME/build/aur}"
 AUR_BASE="https://aur.archlinux.org"
 
 mkdir -p "$BUILDROOT"
+SKIPPED_PACKAGES=()
 
 # Ensure local repo is set up + registered in pacman.conf once.
 setup_local_repo() {
@@ -174,6 +176,7 @@ build_one() {
     read -r yn
     if [[ ! "$yn" =~ ^[Yy]$ ]]; then
         echo "    Skipped by user. Moving on (package will NOT be installed)."
+        SKIPPED_PACKAGES+=( "$pkgname" )
         return 0
     fi
 
@@ -215,6 +218,7 @@ PACKAGES=(
     helium-browser-bin
     mpvpaper
     vscode-langservers-extracted
+    chkrootkit
 )
 
 for p in "${PACKAGES[@]}"; do
@@ -222,6 +226,9 @@ for p in "${PACKAGES[@]}"; do
 done
 
 echo
-echo "==> All AUR builds done."
-echo "==> Installed from [$LOCALREPO_NAME]: ${PACKAGES[*]}"
+echo "==> AUR build pass done."
+if [[ ${#SKIPPED_PACKAGES[@]} -gt 0 ]]; then
+    echo "==> Skipped (not installed): ${SKIPPED_PACKAGES[*]}"
+fi
+echo "==> Requested from [$LOCALREPO_NAME]: ${PACKAGES[*]}"
 echo "==> Next: ./20-sddm.sh"

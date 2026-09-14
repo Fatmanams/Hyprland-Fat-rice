@@ -38,6 +38,15 @@ if ! grep -q '^\[multilib\]' /etc/pacman.conf; then
 else
     echo "    multilib already enabled."
 fi
+if ! awk '
+    /^\[multilib\]$/ { in_multilib=1; next }
+    /^\[/ { in_multilib=0 }
+    in_multilib && /^Include = \/etc\/pacman\.d\/mirrorlist$/ { found=1 }
+    END { exit !found }
+' /etc/pacman.conf; then
+    sudo sed -i '/^#Include = \/etc\/pacman\.d\/mirrorlist/ s/^#//' /etc/pacman.conf
+    echo "    multilib mirrorlist enabled."
+fi
 sudo pacman -Syu --noconfirm
 
 echo "==> [2/8] Configuring /etc/makepkg.conf for parallelism + ccache + native tuning"
@@ -51,12 +60,21 @@ fi
 if ! command -v ccache >/dev/null 2>&1; then
     sudo pacman -S --noconfirm --needed ccache
 fi
-if ! grep -q '!ccache' "$MAKEPKG"; then
-    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color !ccache check !sign)|' "$MAKEPKG"
-    echo "    ccache enabled in BUILDENV"
-else
-    echo "    ccache already in BUILDENV"
+if grep -q '^BUILDENV=.*!ccache' "$MAKEPKG"; then
+    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
+elif ! grep -q '^BUILDENV=' "$MAKEPKG"; then
+    echo 'BUILDENV=(!distcc !color ccache check !sign)' | sudo tee -a "$MAKEPKG" >/dev/null
+elif ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
+    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
 fi
+# ccache must now appear enabled on the BUILDENV line. Match the disabled
+# token explicitly — \bccache\b alone also matches inside "!ccache".
+if grep -q '^BUILDENV=.*!ccache' "$MAKEPKG" \
+        || ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
+    echo "    ERROR: ccache is not enabled in BUILDENV after configuration." >&2
+    exit 1
+fi
+echo "    ccache enabled in BUILDENV"
 
 # Everything the rice actually compiles (the AUR set in 10-aur.sh) gets
 # CPU-native flags — prefer compiled-and-native for what's built anyway.
@@ -97,6 +115,7 @@ sudo pacman -S --needed --noconfirm \
     ttf-jetbrains-mono-nerd ttf-nerd-fonts-symbols \
     fontconfig \
     jq curl wget git base-devel \
+    neomutt isync msmtp gnupg khal vdirsyncer \
     gcc clang make cmake meson ninja pkgconf \
     imagemagick ffmpeg \
     pciutils mesa-demos \
@@ -107,12 +126,12 @@ sudo pacman -S --needed --noconfirm \
     ripgrep fd zoxide chafa \
     poppler \
     yazi thunar tumbler thunar-archive-plugin thunar-volman gvfs \
-    vlc \
+    vlc obs-studio audacity \
     yt-dlp streamlink \
     bitwarden \
     bluez bluez-utils blueman \
     ufw \
-    clamav apparmor firejail \
+    clamav libnotify apparmor firejail \
     kde-cli-tools
 
 echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"
@@ -141,7 +160,7 @@ echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"
 #   typescript-language-server 5.1.3 (extra/any)
 # HTML/CSS/JSON/ESLint servers (vscode-langservers-extracted) are NOT in
 # official repos — AUR-only, so they go through 10-aur.sh's reviewed
-# pipeline per policy rule #3, not here.
+# reviewed source-build pipeline, not here.
 sudo pacman -S --needed --noconfirm \
     pyright \
     rust-analyzer \
@@ -184,7 +203,7 @@ echo "    clamav-freshclam.service enabled: virus DB keeps itself current."
 
 echo "==> [6/8] GPU driver layer (NVIDIA or Intel/AMD — pick one)"
 GPU_CHOSEN=0
-CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei ' VGA compatible controller: ' | head -n1)
+CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
 echo "    Detected GPU line: ${CURRENT_GPU:-unknown}"
 
 if echo "$CURRENT_GPU" | grep -qi 'nvidia'; then
@@ -263,7 +282,7 @@ if [[ -z "$CPUPOWER_CONF" ]]; then
     echo "       Check 'cat /usr/lib/systemd/scripts/cpupower' for the source line"
     echo "       and set the governor manually: cpupower frequency-set -g performance"
 else
-    sudo tee "$CPUPOWER_CONF" >/dev/null <<EOF
+    sudo tee "$CPUPOWER_CONF" >/dev/null <<'EOF'
 # Set by linux-rice 00-base.sh. Restore the stock default by deleting the
 # `governor=` line below and re-running: sudo systemctl restart cpupower
 governor='performance'

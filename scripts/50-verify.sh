@@ -23,28 +23,32 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 
 HYPR_CFG="$HOME/.config/hypr"
 
-echo "==> [1/8] First-boot TODOs cleared"
-# hyprland.conf / hyprpaper.conf ship with literal "@@ TODO @@"
-# placeholders (monitor name, wallpaper path) the user must replace
-# after first boot. Any leftover means the stopgap is still live.
-todo_hits=$(grep -Rn '@@ TODO @@' "$HYPR_CFG/hyprland.conf" "$HYPR_CFG/hyprpaper.conf" 2>/dev/null || true)
-if [[ -z "$todo_hits" ]]; then
-    pass "no '@@ TODO @@' placeholders remain in installed hypr configs"
+echo "==> [1/8] Monitor and wallpaper layout"
+# Wildcard and explicit layouts are both valid; what must never happen is
+# a hyprland.conf with no monitor= line or a hyprpaper.conf with no
+# wallpaper rule — that means the configs are broken or missing, not
+# customized.
+if grep -qE '^monitor=' "$HYPR_CFG/hyprland.conf" 2>/dev/null \
+        && grep -qE '^wallpaper\s*=' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null; then
+    if grep -qE '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf"; then
+        pass "monitor layout present (wildcard: every output, preferred mode)"
+    else
+        pass "monitor layout present (explicit per-output lines)"
+    fi
 else
-    fail "unresolved '@@ TODO @@' placeholders:"
-    echo "$todo_hits" | sed 's/^/        /'
+    fail "hyprland.conf or hyprpaper.conf missing/broken (no monitor= or wallpaper= line)"
 fi
 
 echo "==> [2/8] GPU driver sanity"
-# Same lspci detection 00-base.sh uses at install time, INCLUDING the
-# head -n1 (first VGA controller only) — so on hybrid/Optimus systems
-# verify and install always agree on which controller counts.
+# Same lspci controller classes 00-base.sh uses at install time. Keep all
+# controllers so hybrid/Optimus systems are verified against the same
+# vendor choice that the installer made.
 # Cross-checked against installed packages so a half-finished driver
 # swap is caught. NVIDIA hardware does NOT imply the nvidia package:
 # 00-base.sh's GPU step lets the user decline the proprietary driver
 # and fall through to mesa — a supported outcome, so that combination
 # is a PASS here, not a FAIL.
-gpu_line=$(lspci -nn | grep -Ei ' VGA compatible controller: ' | head -n1 || true)
+gpu_line=$(lspci -nn | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
 if [[ -z "$gpu_line" ]]; then
     fail "no VGA controller detected by lspci"
 else
@@ -81,6 +85,13 @@ if systemctl is-active --quiet clamav-freshclam.service; then
 else
     fail "clamav-freshclam.service not active (state: $(systemctl is-active clamav-freshclam.service 2>&1))"
 fi
+if grep -Eq '^[[:space:]]*set[[:space:]]+crypt_autosign[[:space:]]*=[[:space:]]*yes' \
+    "$HYPR_CFG/../neomutt/neomuttrc" 2>/dev/null &&
+    grep -q 'YOUR_GPG_KEY_ID_HERE' "$HYPR_CFG/../neomutt/neomuttrc"; then
+    fail "Neomutt signing is enabled with the placeholder GPG key"
+else
+    pass "Neomutt signing is disabled or has a configured GPG key"
+fi
 
 echo "==> [5/8] bluetooth"
 if systemctl is-active --quiet bluetooth.service; then
@@ -95,7 +106,7 @@ echo "==> [6/8] SDDM rollback snapshot exists"
 # to a normal user, so without sudo we can only say "cannot check"
 # rather than guess — rerun with sudo to verify properly.
 if sudo -n true 2>/dev/null; then
-    if sudo -n sh -c 'compgen -G "/root/sddm-snap.*" >/dev/null'; then
+    if sudo -n bash -c 'compgen -G "/root/sddm-snap.*" >/dev/null'; then
         pass "at least one /root/sddm-snap.* snapshot exists"
     else
         fail "no /root/sddm-snap.* snapshot found (20-sddm.sh may not have run)"
@@ -106,15 +117,15 @@ fi
 
 echo "==> [7/8] Theme preset integrity (repo checkout)"
 # Same logic as .github/workflows/lint.yml's "theme presets carry every
-# pywal format" step: each preset dir must ship all seven formats, and
+# pywal format" step: each preset dir must ship all eight formats, and
 # switch-theme.sh must reference each one — a format missing from
 # either place leaves that consumer on a stale palette after a switch.
 # Keep this FORMATS list identical to lint.yml's (last updated to match:
-# 7 entries). This one intentionally runs against the repo checkout, not
+# 8 entries). This one intentionally runs against the repo checkout, not
 # ~/, so it can catch a bad commit before it ever reaches the installed
 # system.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf)
+FORMATS=(colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc)
 theme_ok=1
 for d in "$REPO_ROOT"/config/hypr/themes/*/; do
     for f in "${FORMATS[@]}"; do
@@ -131,7 +142,7 @@ for f in "${FORMATS[@]}"; do
     fi
 done
 if [[ $theme_ok -eq 1 ]]; then
-    pass "all presets carry all 7 pywal formats and switch-theme.sh lists them"
+    pass "all presets carry all 8 pywal formats and switch-theme.sh lists them"
 else
     fail "theme preset integrity broken (see MISSING lines above)"
 fi

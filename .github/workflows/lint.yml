@@ -13,7 +13,7 @@ jobs:
       - name: bash -n syntax check (AGENTS.md minimum)
         run: |
           set -euo pipefail
-          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh; do
+          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
@@ -21,15 +21,17 @@ jobs:
       - name: shellcheck (error severity)
         run: |
           set -euo pipefail
-          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh
+          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh
 
       - name: jq parse check (strip deliberate // comment headers first)
         run: |
           set -euo pipefail
-          for f in config/swaync/config.json config/wlogout/layout config/zed/settings.json config/zed/keymap.json; do
+          for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do
             echo "jq $f"
             sed '/^\/\//d' "$f" | jq empty
           done
+          echo "jq config/wlogout/layout (concatenated button objects)"
+          sed '/^\/\//d' config/wlogout/layout | jq -s empty
 
       - name: emacs lisp syntax check (byte-compile init.el + palette files)
         run: |
@@ -50,18 +52,18 @@ jobs:
       - name: theme presets carry every pywal format
         run: |
           set -euo pipefail
-          # AGENTS.md palette contract: each preset must ship all seven
+          # AGENTS.md palette contract: each preset must ship all eight
           # formats, and switch-theme.sh must copy each one.
           rc=0
           for d in config/hypr/themes/*/; do
-            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
               if [ ! -f "$d$f" ]; then
                 echo "MISSING: $d$f"
                 rc=1
               fi
             done
           done
-          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf; do
+          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
             if ! grep -q "$f" config/hypr/switch-theme.sh; then
               echo "MISSING from switch-theme.sh cp list: $f"
               rc=1

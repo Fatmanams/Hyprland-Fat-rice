@@ -1,0 +1,6 @@
+# Identity + sending for the second account. Sourced by folder-hook when
+# an other/ mailbox is opened. Same rule as gmail.muttrc: no $folder, no
+# credentials here.
+set realname = "Your Name"
+set from = "you@example.com"
+set sendmail = "/usr/bin/msmtp -a other"

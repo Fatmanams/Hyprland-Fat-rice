@@ -1,0 +1,8 @@
+# Identity + sending for the gmail account. Sourced by folder-hook when a
+# gmail mailbox is opened (and once at startup as the default). Do NOT set
+# $folder here — neomuttrc keeps it on the local Maildir tree; mbsync/msmtp
+# own the network side, both authing through the OAuth token in
+# ~/.config/neomutt/oauth/ (see README "Mail and calendar setup").
+set realname = "Your Name"
+set from = "you@gmail.com"
+set sendmail = "/usr/bin/msmtp -a gmail"

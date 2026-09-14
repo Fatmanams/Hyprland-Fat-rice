@@ -9,7 +9,8 @@
 #
 # Each preset dir MUST carry every pywal output format the rice consumes
 # (colors-waybar.css, colors-rofi.rasi, colors-wal.vim, colors.el,
-# colors.sh, colors-zed.json, colors-hyprland.conf) — see AGENTS.md's
+# colors.sh, colors-zed.json, colors-hyprland.conf, colors-neomutt.muttrc)
+# — see AGENTS.md's
 # palette contract. Adding a consumer that reads a new format means
 # adding that file to every preset AND to the cp below with the same name,
 # or theme switching leaves it on a stale palette.
@@ -46,6 +47,7 @@ apply() {
           "$THEME_SRC/$name/colors.sh" \
           "$THEME_SRC/$name/colors-zed.json" \
           "$THEME_SRC/$name/colors-hyprland.conf" \
+          "$THEME_SRC/$name/colors-neomutt.muttrc" \
           "$WAL_DIR/"
     echo "$name" > "$MARKER"
 
@@ -56,7 +58,8 @@ apply() {
 
     echo "Theme applied: $name (running 'wal -i' returns to wallpaper mode)"
 
-    # Reload the components that read colors at startup.
+    # Reload persistent components that read colors at startup. Transient
+    # tools (Rofi, wlogout, Neomutt, and ikhal) read the new files on launch.
     if command -v waybar >/dev/null 2>&1 && pgrep -x waybar >/dev/null 2>&1; then
         killall waybar 2>/dev/null || true
         (waybar >/dev/null 2>&1 &)
@@ -66,7 +69,21 @@ apply() {
         eww close bar_main 2>/dev/null || true
         eww open bar_main 2>/dev/null || true
     fi
-    # swaync / rofi / wlogout / nvim read colors at their next start.
+    if command -v swaync-client >/dev/null 2>&1 \
+            && pgrep -x swaync >/dev/null 2>&1; then
+        swaync-client --reload-config >/dev/null 2>&1 || true
+        swaync-client --reload-css >/dev/null 2>&1 || true
+    fi
+    if command -v hyprctl >/dev/null 2>&1; then
+        hyprctl reload >/dev/null 2>&1 || true
+    fi
+    if command -v emacsclient >/dev/null 2>&1; then
+        emacsclient --eval '(load-file (expand-file-name "~/.config/emacs/init.el"))' \
+            >/dev/null 2>&1 || true
+    fi
+    # Rofi and wlogout are transient; they read the new palette next time
+    # they launch. Neomutt and ikhal likewise start with the current files.
+    # Nvim reapplies its palette when an existing session regains focus.
 }
 
 cycle() {
