@@ -199,6 +199,10 @@ of `config/hypr/keybinds-extra.conf`, which is copied to
 shortcut or a `$_command` value to match a locally installed executable.
 Reload with `hyprctl reload` or `SUPER+SHIFT+C`. The main
 `hyprland.conf` keeps the complete categorized reference list.
+`SUPER+SHIFT+/` lists every parsed keybind in a rofi menu (with `$var`s
+resolved) and opens the selected one at its file:line in `zed --wait`;
+the menu binary is rebuilt from `config/rofi/keybind-menu.cpp` by every
+`30-dotfiles.sh` run.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"
@@ -705,6 +709,7 @@ Bindings:
 | `SUPER + SHIFT + T`| Cycle theme preset (mocha/gruvbox/tokyonight/osaka-jade) |
 | `SUPER + V`        | Open Bitwarden                               |
 | `SUPER + SHIFT + M`| Prompt for a URL in rofi, play it in VLC (YouTube etc. resolved by yt-dlp, Twitch by streamlink — see `config/vlc/vlc-open`) |
+| `SUPER + SHIFT + /`| Browse every Hyprland keybind in rofi ($vars resolved); Enter opens the selected bind's file:line in `zed --wait` |
 | `F2` (in nvim/emacs) | Toggle fats mode <-> supermode (insert-forever readline style vs. modal/motion); statusbar/mode-line shows the active mode |
 
 

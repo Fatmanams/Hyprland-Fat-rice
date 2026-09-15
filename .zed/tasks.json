@@ -21,6 +21,13 @@
     "save": "all"
   },
   {
+    "label": "Repo: C++ syntax",
+    "command": "g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
     "label": "Repo: Diff check",
     "command": "git diff --check",
     "use_new_terminal": false,
@@ -29,7 +36,7 @@
   },
   {
     "label": "Repo: Full lint",
-    "command": "bash -c 'set -e; bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh; for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do sed \"/^\\/\\//d\" \"$f\" | jq empty; done; sed \"/^\\/\\//d\" config/wlogout/layout | jq -s empty; git diff --check'",
+    "command": "bash -c 'set -e; bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh; for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do sed \"/^\\/\\//d\" \"$f\" | jq empty; done; sed \"/^\\/\\//d\" config/wlogout/layout | jq -s empty; g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp; git diff --check'",
     "use_new_terminal": false,
     "reveal": "always",
     "save": "all"

@@ -77,3 +77,10 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq luajit
           luajit -bl config/nvim/init.lua /dev/null
+
+      # g++ is preinstalled on ubuntu-latest; -fsyntax-only parses/semantics
+      # without producing a binary (30-dotfiles.sh does the real -O2 build).
+      - name: keybind-menu.cpp compiles clean (g++)
+        run: |
+          set -euo pipefail
+          g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp

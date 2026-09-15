@@ -35,6 +35,14 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
+# The rofi keybind menu is the rice's one compiled component: the repo
+# tracks only the .cpp (the binary is gitignored), so rebuild it on every
+# deploy — regenerated like the rest of the rice, never hand-maintained.
+echo "==> Building rofi keybind menu (g++)"
+g++ -std=c++17 -O2 -Wall -Wextra \
+    -o "$HOME/.config/rofi/keybind-menu" \
+    "$CFG_SRC/rofi/keybind-menu.cpp"
+
 # Mail transport/sync configs and Neomutt account files contain user
 # addresses — installed from the public examples only, and never
 # overwrite an existing personalized copy.

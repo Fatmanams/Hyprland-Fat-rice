@@ -144,7 +144,8 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── isync/                      Maildir synchronization config
     ├── msmtp/                      SMTP sending config
     ├── swaync/{config.json,style.css}
-    ├── rofi/config.rasi
+    ├── rofi/config.rasi              all rofi styling lives here (imported by the keybind menu, no -theme flag)
+    ├── rofi/keybind-menu.cpp         rofi keybind viewer/editor source; binary rebuilt by 30-dotfiles.sh into ~/.config/rofi/ (gitignored)
     ├── eww/{eww.yuck,eww.scss}
     ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
     ├── systemd/user/             user timers, including the daily ClamAV scan
@@ -231,6 +232,10 @@ by `.github/workflows/lint.yml`):
    `config.json` and wlogout's `layout` is **deliberate** — keeps the
    `write` tool's JSON auto-detect from misparsing the file content as
    an object literal at session-time. Don't remove it without testing).
+4. **C++ syntax check** on the rofi keybind menu (mirrors lint.yml):
+   ```
+   g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp
+   ```
 
 If you add a new script, structure, or behavior, run the relevant
 syntax checks before committing, and add it to the lint workflow's
@@ -243,6 +248,7 @@ coverage if it isn't already (CI catches it otherwise).
 | You want to...                                | File to edit                                                 |
 |-----------------------------------------------|--------------------------------------------------------------|
 | Change keybinds                               | `config/hypr/keybinds-extra.conf` for launch shortcuts; `hyprland.conf` for compositor/workspace bindings |
+| View/change keybinds interactively            | `config/rofi/keybind-menu.cpp`                                     |
 | Add/remove a pywal-driven tool                | `config/hypr/hyprland.conf` (exec-once) + `config/<tool>/`    |
 | Change cursor theme or size                   | `config/hypr/hyprland.conf` (`env = XCURSOR_*`, `HYPRCURSOR_*`) |
 | Switch from ghostty to kitty / alacritty      | `config/hypr/hyprland.conf` (`$terminal = ...`)              |
