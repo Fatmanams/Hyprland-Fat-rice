@@ -107,10 +107,12 @@ void parse_file(const std::string& path,
     static const std::regex assign_re(
         R"(^\s*\$([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$)");
     // bind<flags> = MODS, KEY, DISPATCHER[, PARAMS]
-    // flags: any combo of e/l/r/m/t/n (binde, bindl, bindel, bindm, ...)
-    // PARAMS is optional (bindm = $mod, mouse:272, movewindow).
+    // Flags are open-ended (bind/binde/bindl/bindel/bindm/bindd/...) so a
+    // newly added Hyprland variant still lists; anything bind-prefixed that
+    // STILL doesn't match the full grammar warns on stderr below instead of
+    // vanishing silently.
     static const std::regex bind_re(
-        R"(^\s*bind[elrtmn]*\s*=\s*([^,]*),\s*([^,]*),\s*([^,]*)(?:,\s*(.*))?$)");
+        R"(^\s*bind[a-z]*\s*=\s*([^,]*),\s*([^,]*),\s*([^,]*)(?:,\s*(.*))?$)");
 
     std::ifstream in(path);
     if (!in) return;
@@ -119,8 +121,9 @@ void parse_file(const std::string& path,
     int lineno = 0;
     while (std::getline(in, raw)) {
         ++lineno;
-        // Hyprland cuts every line at the first '#'; mirror that so the
-        // display matches what the compositor actually applies.
+        // Hyprland's comment handling is quote-aware in principle; this
+        // simple cut at the first '#' is exact for every bind in this rice
+        // (none carries a literal '#' in its params).
         if (const auto hash = raw.find('#'); hash != std::string::npos)
             raw.erase(hash);
 
@@ -129,16 +132,26 @@ void parse_file(const std::string& path,
             vars[m[1].str()] = trim(m[2].str());  // last definition wins
             continue;
         }
-        if (!std::regex_match(raw, m, bind_re)) continue;
-
-        Bind b;
-        b.file = path;
-        b.line = lineno;
-        b.mods = trim(m[1].str());
-        b.key = trim(m[2].str());
-        b.dispatcher = trim(m[3].str());
-        b.params = (m.size() > 4 && m[4].matched) ? trim(m[4].str()) : "";
-        binds.push_back(std::move(b));
+        if (std::regex_match(raw, m, bind_re)) {
+            Bind b;
+            b.file = path;
+            b.line = lineno;
+            b.mods = trim(m[1].str());
+            b.key = trim(m[2].str());
+            b.dispatcher = trim(m[3].str());
+            b.params = (m.size() > 4 && m[4].matched) ? trim(m[4].str()) : "";
+            binds.push_back(std::move(b));
+            continue;
+        }
+        // Starts with "bind" but doesn't match the grammar (e.g. a bindd
+        // description with a comma, or a future variant): say so on stderr
+        // (lands in Hyprland's log) instead of dropping the row silently.
+        // A '{' means it's a `binds {}` settings block — not a keybind.
+        if (const std::string t = trim(raw);
+            t.rfind("bind", 0) == 0 && t.find('{') == std::string::npos) {
+            std::cerr << "keybind-menu: " << path << ':' << lineno
+                      << ": unrecognized bind line, skipped: " << t << '\n';
+        }
     }
 }
 
@@ -195,8 +208,10 @@ bool rofi_query(const std::vector<std::string>& lines, std::string& out) {
     ::close(to_child[0]);
     ::close(from_child[1]);
 
-    // rofi -dmenu reads stdin to EOF before accepting input, so writing
-    // the whole list before reading the answer cannot deadlock.
+    // Feed the whole list, then read rofi's one-line answer. The list is a
+    // few KB at most, and rofi can't write a selection before a human picks
+    // one, so there is no read/write interleaving to deadlock regardless of
+    // exactly when rofi drains its stdin.
     bool sent = true;
     for (const std::string& line : lines) {
         sent = write_all(to_child[1], line.data(), line.size()) &&
@@ -263,9 +278,15 @@ int main() {
 
     std::unordered_map<std::string, std::string> vars;
     std::vector<Bind> binds;
-    parse_file(std::string(home) + "/.config/hypr/keybinds-extra.conf", vars, binds);
-    parse_file(std::string(home) + "/.config/hypr/hyprland.conf", vars, binds);
-    if (binds.empty()) return 0;  // nothing parsed: show nothing, say nothing
+    const std::string extra = std::string(home) + "/.config/hypr/keybinds-extra.conf";
+    const std::string main_conf = std::string(home) + "/.config/hypr/hyprland.conf";
+    parse_file(extra, vars, binds);
+    parse_file(main_conf, vars, binds);
+    if (binds.empty()) {
+        std::cerr << "keybind-menu: parsed 0 binds from " << extra << " and "
+                  << main_conf << " — check those files exist\n";
+        return 0;  // still not an error: nothing to show, nothing to edit
+    }
 
     // Display strings are built only now (see header): binds[i] below and
     // lines[i] here stay index-aligned by construction. (rofi's -format i
