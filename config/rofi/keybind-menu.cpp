@@ -2,13 +2,17 @@
 //
 // Parses `bind*` lines out of ~/.config/hypr/keybinds-extra.conf and
 // ~/.config/hypr/hyprland.conf (in that order), lists them in
-// `rofi -dmenu`, and on selection opens the bind's source line in the
-// rice's editor (`zed --wait <file>:<line>` — the same convention as
-// hyprland.conf's `$editor`).
+// `rofi -dmenu`, and on selection opens the bind's source line in
+// $editor. EDITS LAND ON THE REPO CHECKOUT: 30-dotfiles.sh bakes the
+// repo path into the binary with -DRICE_REPO, and the live ~/.config
+// path is mapped back to $RICE_REPO/config/..., so a change made through
+// the menu is a change git can see and the next deploy regenerates FROM
+// (editing ~/.config/hypr/* directly would be silently overwritten).
 //
-// Four deliberate design points:
-//   * `$var` substitution ($mod, $key_mail, ...) is DISPLAY-ONLY. The
-//     source files are never rewritten; editing happens through Zed.
+// Deliberate design points:
+//   * $var substitution ($mod, $key_mail, ...) is DISPLAY-ONLY. The
+//     source files are never rewritten by this tool; editing happens in
+//     the configured editor.
 //   * Substitution runs only AFTER both files are fully parsed: the
 //     earlier file's binds may reference variables defined in the later
 //     one (keybinds-extra.conf is parsed first yet uses hyprland.conf's
@@ -33,9 +37,18 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+// 30-dotfiles.sh builds with -DRICE_REPO="\"/path/to/checkout\"" so an
+// edit target can be mapped live-config -> tracked repo file. The #ifndef
+// fallback keeps hand builds (and lint.yml's -fsyntax-only, which passes
+// no -D) compiling; they just edit the deployed copy directly.
+#ifndef RICE_REPO
+#define RICE_REPO ""
+#endif
 
 namespace {
 
@@ -51,6 +64,25 @@ std::string trim(const std::string& s) {
     const auto first = s.find_first_not_of(kWs);
     if (first == std::string::npos) return {};
     return s.substr(first, s.find_last_not_of(kWs) - first + 1);
+}
+
+// Map a deployed config path back to its source file in this repo:
+//   <home>/.config/<rest>   ->   <RICE_REPO>/config/<rest>
+// 30-dotfiles.sh `cp -a`'s the tree verbatim, so relative layout (and line
+// numbers, while the deploy is current) match. Edit the repo file when it
+// exists there — otherwise edits would die with the next deploy. Falls
+// back to the deployed path when built without -DRICE_REPO, when the path
+// isn't under ~/.config, or when the repo file is gone (source deleted).
+std::string edit_target(const std::string& deployed_path,
+                        const std::string& home) {
+    if (RICE_REPO[0] == '\0') return deployed_path;  // hand-built binary
+    const std::string prefix = home + "/.config/";
+    if (deployed_path.compare(0, prefix.size(), prefix) != 0)
+        return deployed_path;
+    const std::string repo_path =
+        std::string(RICE_REPO) + "/config/" + deployed_path.substr(prefix.size());
+    std::ifstream probe(repo_path);
+    return probe.good() ? repo_path : deployed_path;
 }
 
 // Replace every `$name` found in `s` with vars[name]. Re-runs over the
@@ -192,6 +224,9 @@ bool rofi_query(const std::vector<std::string>& lines, std::string& out) {
         return false;
     }
     if (pid == 0) {
+        // execvp only resets caught handlers; SIG_IGN survives it. Give the
+        // child the default SIGPIPE disposition none of this code changed.
+        std::signal(SIGPIPE, SIG_DFL);
         ::dup2(to_child[0], STDIN_FILENO);
         ::dup2(from_child[1], STDOUT_FILENO);
         ::close(to_child[0]);
@@ -231,33 +266,59 @@ bool rofi_query(const std::vector<std::string>& lines, std::string& out) {
         out.append(buf, static_cast<std::size_t>(n));
     }
     ::close(from_child[0]);
-    reap(pid);
+    const int status = reap(pid);
 
     if (!sent) {
-        std::cerr << "keybind-menu: failed to feed rofi (is rofi installed?)\n";
+        std::cerr << "keybind-menu: failed to feed rofi (is it installed?)\n";
+        return false;
+    }
+    // Exit 127 = the child's execvp failed: rofi is not on PATH. Without
+    // this check a missing rofi reads back as "cancelled" and exits 0.
+    if (status == -1 || !WIFEXITED(status) || WEXITSTATUS(status) == 127) {
+        std::cerr << "keybind-menu: could not run rofi (is it installed?)\n";
         return false;
     }
     return true;
 }
 
-// Open `file:line` in the rice's editor: `zed --wait` (see hyprland.conf
-// `$editor`). Blocks until the edit finishes, like a normal $EDITOR call.
-bool open_in_editor(const std::string& file, int line) {
-    const std::string target = file + ":" + std::to_string(line);
+// Open `file:line` in the configured $editor ("zed --wait" in this rice —
+// parsed from hyprland.conf like every other variable, default if unset).
+// Blocks until the edit finishes, like a normal $EDITOR call.
+bool open_in_editor(const std::string& file, int line,
+                    const std::unordered_map<std::string, std::string>& vars) {
+    std::string editor = "zed --wait";
+    if (const auto it = vars.find("editor"); it != vars.end()) {
+        const std::string v = trim(it->second);
+        if (!v.empty()) editor = v;
+    }
+    // $editor is a command line ("zed --wait"), not an argv; split on
+    // whitespace. Values here are simple flags, no quoting/escaping needed.
+    std::vector<std::string> argv_s;
+    {
+        std::istringstream split(editor);
+        for (std::string word; split >> word;) argv_s.push_back(word);
+    }
+    if (argv_s.empty()) return false;
+    argv_s.push_back(file + ":" + std::to_string(line));
+
     const pid_t pid = ::fork();
     if (pid < 0) {
         std::cerr << "keybind-menu: fork(): " << std::strerror(errno) << '\n';
         return false;
     }
     if (pid == 0) {
-        const char* argv[] = {"zed", "--wait", target.c_str(), nullptr};
-        ::execvp(argv[0], const_cast<char* const*>(argv));
-        std::cerr << "keybind-menu: exec zed: " << std::strerror(errno) << '\n';
+        std::signal(SIGPIPE, SIG_DFL);  // see rofi_query for why
+        std::vector<const char*> argv;
+        for (const std::string& a : argv_s) argv.push_back(a.c_str());
+        argv.push_back(nullptr);
+        ::execvp(argv[0], const_cast<char* const*>(argv.data()));
+        std::cerr << "keybind-menu: exec " << argv[0] << ": "
+                  << std::strerror(errno) << '\n';
         ::_exit(127);
     }
     const int status = reap(pid);
     if (status == -1 || !WIFEXITED(status) || WEXITSTATUS(status) == 127) {
-        std::cerr << "keybind-menu: zed did not run cleanly\n";
+        std::cerr << "keybind-menu: editor did not run cleanly\n";
         return false;
     }
     return true;
@@ -310,6 +371,8 @@ int main() {
     }
 
     const Bind& b = binds[static_cast<std::size_t>(idx)];
-    if (!open_in_editor(b.file, b.line)) return 1;
+    // Edit the repo checkout's copy (see edit_target), line number
+    // unchanged: cp -a deploys byte-identical files.
+    if (!open_in_editor(edit_target(b.file, home), b.line, vars)) return 1;
     return 0;
 }

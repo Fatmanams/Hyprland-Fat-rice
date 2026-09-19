@@ -145,7 +145,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── msmtp/                      SMTP sending config
     ├── swaync/{config.json,style.css}
     ├── rofi/config.rasi              all rofi styling lives here (imported by the keybind menu, no -theme flag)
-    ├── rofi/keybind-menu.cpp         rofi keybind viewer/editor source; binary rebuilt by 30-dotfiles.sh into ~/.config/rofi/ (gitignored)
+    ├── rofi/keybind-menu.cpp         rofi keybind viewer/editor source; binary rebuilt by 30-dotfiles.sh into ~/.config/rofi/ (gitignored); edits open the tracked repo file via -DRICE_REPO
     ├── eww/{eww.yuck,eww.scss}
     ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
     ├── systemd/user/             user timers, including the daily ClamAV scan
@@ -234,7 +234,7 @@ by `.github/workflows/lint.yml`):
    an object literal at session-time. Don't remove it without testing).
 4. **C++ syntax check** on the rofi keybind menu (mirrors lint.yml):
    ```
-   g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp
+   g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
    ```
 
 If you add a new script, structure, or behavior, run the relevant

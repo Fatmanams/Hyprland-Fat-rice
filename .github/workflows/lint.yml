@@ -80,7 +80,8 @@ jobs:
 
       # g++ is preinstalled on ubuntu-latest; -fsyntax-only parses/semantics
       # without producing a binary (30-dotfiles.sh does the real -O2 build).
-      - name: keybind-menu.cpp compiles clean (g++)
+      # -Werror locks in the currently warning-free compile.
+      - name: keybind-menu.cpp compiles clean (g++ -Werror)
         run: |
           set -euo pipefail
-          g++ -std=c++17 -Wall -Wextra -fsyntax-only config/rofi/keybind-menu.cpp
+          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
