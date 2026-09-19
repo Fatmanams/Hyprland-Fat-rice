@@ -23,6 +23,9 @@
 build/
 build-aur/
 
+# Compiled locally by 30-dotfiles.sh on every deploy (source is tracked)
+config/rofi/keybind-menu
+
 # Local mail/calendar credentials and account settings
 config/neomutt/accounts/*.muttrc
 !config/neomutt/accounts/*.muttrc.example
