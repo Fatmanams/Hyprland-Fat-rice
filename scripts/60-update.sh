@@ -264,9 +264,10 @@ fi
 echo "==> [5/8] Lint gate (fast subset of .github/workflows/lint.yml)"
 # This gate runs what can run on the box right now without installing
 # anything: bash -n on all scripts (incl. scripts/lib/, systemd helpers),
-# jq parse on the three `// -prefixed` JSONs + wlogout's layout, and the
-# g++ -fsyntax-only build of keybind-menu.cpp. CI additionally runs
-# shellcheck, emacs byte-compile, luajit, and the theme-presence check.
+# jq parse on the three `// -prefixed` JSONs + wlogout's layout, the
+# g++ -fsyntax-only build of keybind-menu.cpp, and the lint-themes.sh
+# palette-sync check (pure bash + comm). CI additionally runs shellcheck,
+# emacs byte-compile, and luajit (tools the box may not have).
 # If the new tree breaks any of those, it fails here too IF and ONLY IF
 # the tool is present — so keep them non-optional in CI, never silent here.
 # NOTE: a (...)-list followed by `||` DISABLES `set -e` inside it, so this
@@ -293,6 +294,10 @@ set +e
     # update that carries it adds the file, later updates keep checking it.
     if [[ -f config/rofi/keybind-menu.cpp ]]; then
         g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
+    fi
+    # Same story for the theme-sync check (arrived with the theme system).
+    if [[ -f scripts/lint-themes.sh ]]; then
+        bash scripts/lint-themes.sh
     fi
 )
 lint_rc=$?

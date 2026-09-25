@@ -3,6 +3,13 @@
 
 set -euo pipefail
 
+# Same guard as ghostty-theme.sh: this renders into $HOME, running it as
+# root would paint root's config — useless on a single-user rice.
+if [[ $EUID -eq 0 ]]; then
+    echo "Run as normal user, not root."
+    exit 1
+fi
+
 WAL="$HOME/.cache/wal/colors.sh"
 TEMPLATE="$HOME/.config/ox/.oxrc.template"
 OUT="$HOME/.config/ox/.oxrc"

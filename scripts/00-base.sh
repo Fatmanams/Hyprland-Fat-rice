@@ -112,6 +112,7 @@ sudo pacman -S --needed --noconfirm \
     ghostty kitty alacritty \
     fish \
     nano neovim lapce neovide \
+    zed \
     polkit polkit-gnome polkit-kde-agent gnome-keyring seahorse \
     NetworkManager \
     pipewire wireplumber \
