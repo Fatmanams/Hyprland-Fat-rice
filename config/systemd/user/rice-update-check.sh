@@ -27,7 +27,13 @@ git -C "$RICE_REPO" fetch --quiet origin 2>/dev/null || exit 0   # offline today
 n=$(git -C "$RICE_REPO" rev-list --count "HEAD..origin/$RICE_BRANCH" 2>/dev/null || echo 0)
 [[ $n =~ ^[0-9]+$ ]] || n=0
 if (( n > 0 )); then
-    notify-send "Hyprland rice" \
-        "$n new commit(s) on origin/$RICE_BRANCH — run scripts/60-update.sh to upgrade"
+    msg="$n new commit(s) on origin/$RICE_BRANCH — run scripts/60-update.sh to upgrade"
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send "Hyprland rice" "$msg"
+    else
+        # Early boots / repair modes may lack the notifier: drop it in the
+        # journal rather than half-failing the unit.
+        printf 'rice-update-check: %s\n' "$msg" >&2
+    fi
 fi
 exit 0

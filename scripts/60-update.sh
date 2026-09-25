@@ -261,11 +261,17 @@ fi
 
 # ---- 5/8 lint gate on the new tree ----------------------------------------------
 
-echo "==> [5/8] Lint gate (same set as .github/workflows/lint.yml)"
-# NOTE: `(...) || lint_ok=0` would DISABLE `set -e` inside the subhell — in a
-# ||-list the shell treats every command as a condition. To keep real failure
-# signalling we run the gate in a subshell with set -e, and only capture its
-# status with the parent shell's errexit temporarily off.
+echo "==> [5/8] Lint gate (fast subset of .github/workflows/lint.yml)"
+# This gate runs what can run on the box right now without installing
+# anything: bash -n on all scripts (incl. scripts/lib/, systemd helpers),
+# jq parse on the three `// -prefixed` JSONs + wlogout's layout, and the
+# g++ -fsyntax-only build of keybind-menu.cpp. CI additionally runs
+# shellcheck, emacs byte-compile, luajit, and the theme-presence check.
+# If the new tree breaks any of those, it fails here too IF and ONLY IF
+# the tool is present — so keep them non-optional in CI, never silent here.
+# NOTE: a (...)-list followed by `||` DISABLES `set -e` inside it, so this
+# gate runs in a subshell with set -e and the parent captures the status
+# with errexit deliberately off.
 set +e
 (
     set -e
