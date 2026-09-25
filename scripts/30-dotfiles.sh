@@ -35,6 +35,29 @@ echo "==> Copying rice configs into ~/.config"
 mkdir -p "$HOME/.config"
 cp -a "$CFG_SRC/." "$HOME/.config/"
 
+# The rofi keybind menu is the rice's one compiled component: the repo
+# tracks only the .cpp (the binary is gitignored), so rebuild it on every
+# deploy — regenerated like the rest of the rice, never hand-maintained.
+# RICE_REPO bakes this checkout's path into the binary so the menu edits
+# the TRACKED config files (what cp -a copies from); line numbers match
+# because the deployed copies are byte-identical. Without it, edits would
+# land in ~/.config and silently die on the next deploy.
+# Build failure must NOT abort the deploy (set -e): a cosmetic menu can't
+# be allowed to truncate the mail/portal/theme steps below.
+echo "==> Building rofi keybind menu (g++)"
+if command -v g++ >/dev/null 2>&1; then
+    g++ -std=c++17 -O2 -Wall -Wextra \
+        -DRICE_REPO="\"$REPO_ROOT\"" \
+        -o "$HOME/.config/rofi/keybind-menu" \
+        "$CFG_SRC/rofi/keybind-menu.cpp" \
+        || echo "    warn: keybind-menu build failed — SUPER+SHIFT+/ unavailable until next deploy"
+    # cp -a also drops this source file next to the binary; ~/.config is
+    # runtime state, not a source tree.
+    rm -f "$HOME/.config/rofi/keybind-menu.cpp"
+else
+    echo "    g++ not found — skipping keybind-menu build (base-devel normally provides it)"
+fi
+
 # Mail transport/sync configs and Neomutt account files contain user
 # addresses — installed from the public examples only, and never
 # overwrite an existing personalized copy.
