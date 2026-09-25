@@ -690,6 +690,28 @@ trees such as `.git`, `node_modules`, `target`, and `.venv`. The existing
 system language servers from `00-base.sh` remain the source of truth; no
 Mason-like runtime installer or extension stack is introduced.
 
+### Local dev database (Postgres) for Zed
+
+Accept the `[9/9]` prompt in `00-base.sh` and the rice installs+initializes
+a localhost PostgreSQL cluster (ArchWiki flow — `initdb` as the `postgres`
+service user into `/var/lib/postgres/data`, service enabled+started, your
+login gets a same-named superuser role and database `createdb`-ed to you).
+It is for learning/dev querying only — no production credentials there, and
+it listens on localhost by default.
+
+Zed auto-installs two extensions to talk to it (`config/zed/settings.json`):
+
+- `sql` — bundled tree-sitter SQL grammar (highlighting; no server).
+- `postgres-language-server` — the Supabase Postgres LSP (schema-aware
+  completion, diagnostics, type checking; it connects to the running DB).
+
+The LSP reads `postgres-language-server.jsonc` from a project's root; this
+repo ships one at the top level wired to `127.0.0.1:5432`,
+`username`/`database` = your login (match what step [9/9] created). Copy it
+into any other project that needs it. If you skip answering the prompt,
+nothing changes — the extension just sits without a live DB until you finish
+setup by hand.
+
 When this repository is opened as a Zed project, `.zed/tasks.json` provides
 repo-local tasks for Bash syntax, JSON validation, the eight-format theme
 contract, whitespace checking, and the combined lint pass. The keymap binds

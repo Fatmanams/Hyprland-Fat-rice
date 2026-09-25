@@ -1,0 +1,21 @@
+// Postgres language-server config for this repo. The Zed extension reads it
+// from the project root only — copy into other projects as needed.
+// `db.username`/`db.database` here assume you accepted [9/9] of 00-base.sh,
+// which creates a role+database named after your login ($USER); if you used
+// different names, change these two to match, or drop the file and rely on
+// the extension's defaults (postgres/postgres with local trust auth).
+{
+  "$schema": "https://pg-language-server.com/latest/schema.json",
+  "files": {
+    "ignore": [".git/**", "node_modules/**", "target/**"]
+  },
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "postgres",
+    "username": "postgres",
+    "password": "postgres",
+    "connTimeoutSecs": 10,
+    "allowStatementExecutionsAgainst": ["127.0.0.1/*", "localhost/*"]
+  }
+}

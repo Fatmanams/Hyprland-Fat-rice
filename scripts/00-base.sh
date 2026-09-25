@@ -20,6 +20,10 @@
 #      (desktop gaming rig tradeoff — see the block's own comment).
 #   8. Optional: installs Emacs (emacs-wayland — the PGTK/native-Wayland
 #      build) as a Zed/nvim alternative IDE.
+#   9. Optional: initializes a local PostgreSQL dev cluster (ArchWiki flow:
+#      initdb as the postgres user, enable+start the service, same-name
+#      superuser role + database for your login) — what Zed's Postgres
+#      extension expects.
 #
 # Run this as a normal user (it will sudo internally where needed).
 # Review it before running. Nothing is silent.
@@ -92,7 +96,7 @@ if ! grep -q '^RUSTFLAGS=' "$MAKEPKG"; then
     echo "    RUSTFLAGS set to -C target-cpu=native (AUR builds)"
 fi
 
-echo "==> [3/8] Installing rice packages from official repos"
+echo "==> [3/9] Installing rice packages from official repos"
 sudo pacman -S --needed --noconfirm \
     hyprland hypridle hyprlock hyprcursor hyprpaper hyprutils hyprlang \
     wayland wayland-protocols \
@@ -132,9 +136,10 @@ sudo pacman -S --needed --noconfirm \
     bluez bluez-utils blueman \
     ufw \
     clamav libnotify apparmor firejail \
-    kde-cli-tools
+    kde-cli-tools \
+    postgresql
 
-echo "==> [4/8] Language servers (shared by Zed and Emacs/eglot)"
+echo "==> [4/9] Language servers (shared by Zed and Emacs/eglot)"
 # These are standalone LSP server binaries on $PATH — not editor plugins.
 # Who consumes them:
 #   * Zed  — discovers servers from $PATH itself (no settings.json entry
@@ -170,7 +175,7 @@ sudo pacman -S --needed --noconfirm \
     gopls \
     typescript-language-server
 
-echo "==> [5/8] Post-install setup: user dirs, Bluetooth, firewall"
+echo "==> [5/9] Post-install setup: user dirs, Bluetooth, firewall"
 xdg-user-dirs-update
 echo "    xdg user dirs created/updated (~/Pictures, ~/Downloads, ...)."
 
@@ -201,7 +206,7 @@ echo "    clamav-freshclam.service enabled: virus DB keeps itself current."
 # (README -> Mandatory first-boot TODOs), same philosophy as the
 # monitor=/wallpaper stopgaps: this script never touches boot config.
 
-echo "==> [6/8] GPU driver layer (NVIDIA or Intel/AMD — pick one)"
+echo "==> [6/9] GPU driver layer (NVIDIA or Intel/AMD — pick one)"
 GPU_CHOSEN=0
 CURRENT_GPU=$(lspci -nn 2>/dev/null | grep -Ei '(VGA compatible controller|3D controller|Display controller)' || true)
 echo "    Detected GPU line: ${CURRENT_GPU:-unknown}"
@@ -232,7 +237,7 @@ if [[ $GPU_CHOSEN -eq 0 ]]; then
         vulkan-mesa-layers lib32-vulkan-mesa-layers
 fi
 
-echo "==> [7/8] CPU performance governor (cpupower) — desktop gaming tradeoff"
+echo "==> [7/9] CPU performance governor (cpupower) — desktop gaming tradeoff"
 # Installs `cpupower` (official extra) and sets the scaling governor to
 # `performance`. Read this comment before accepting — it's a deliberate
 # tradeoff, not a "free speed":
@@ -292,7 +297,7 @@ EOF
     echo "    cpupower.service enabled. Verify: cpupower frequency-info"
 fi
 
-echo "==> [8/8] Emacs — OPTIONAL editor/IDE (Zed + nvim already cover this)"
+echo "==> [8/9] Emacs — OPTIONAL editor/IDE (Zed + nvim already cover this)"
 # Emacs is opt-in: it's a ~264MB installed Lisp image and most users of
 # this rice edit in Zed (GUI) or nvim (terminal). Say yes only if you
 # actually want it; the config at config/emacs/init.el follows the same
@@ -320,6 +325,44 @@ if [[ "$yn" =~ ^[Yy]$ ]]; then
 else
     echo "    Skipped Emacs. (config/emacs/ files are still copied by 30-dotfiles.sh,"
     echo "    but ignored without the binary — remove ~/.config/emacs to tidy up.)"
+fi
+
+echo "==> [9/9] PostgreSQL — OPTIONAL local dev database (Zed + 10-aur tooling)"
+# Installed above with the rice packages. This step initializes the cluster
+# (idempotent), starts the service, and gives your login user a same-named
+# superuser role + database so `psql`/`createdb` work with zero args — the
+# setup Zed's postgres-language-server extension expects (its
+# postgres-language-server.jsonc defaults point at exactly this).
+read -r -p "    Set up a local PostgreSQL dev database? [Y/n] " yn
+if [[ "$yn" =~ ^[Nn]$ ]]; then
+    echo "    Skipped PostgreSQL setup. (postgresql still installed; you can"
+    echo "    run these commands by hand later — see README 'Code editor setup'.)"
+else
+    if [[ ! -s /var/lib/postgres/data/PG_VERSION ]]; then
+        # --auth-local=peer: CLI connections over the unix socket come down to
+        # the linux username. --auth-host=trust: loopback TCP stays zero-password
+        # so Zed's postgres-language-server can connect with no stored secret;
+        # previous-install exposure is contained — PostgreSQL defaults to
+        # listening on localhost, and ufw (step 5) denies incoming anyway.
+        sudo -u postgres initdb -D /var/lib/postgres/data --locale=C.UTF-8 --encoding=UTF8 \
+            --auth-local=peer --auth-host=trust
+    else
+        echo "    cluster already intialized, leaving it alone."
+    fi
+    sudo systemctl enable --now postgresql.service
+    # createuser/createdb are idempotent at the "works" level but not quiet
+    # about it, so gate their churn:
+    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_roles WHERE rolname='$USER'" | grep -q 1; then
+        echo "    pg role '$USER' exists."
+    else
+        sudo -u postgres createuser --superuser "$USER"
+    fi
+    if sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='$USER'" | grep -q 1; then
+        echo "    pg database '$USER' exists."
+    else
+        sudo -u postgres createdb -O "$USER" "$USER"
+    fi
+    echo "    localhost:5432 ready — role + DB are both named '$USER'."
 fi
 
 echo "==> DONE. Next: ./10-aur.sh"

@@ -285,7 +285,7 @@ set +e
         [[ -e $f ]] || continue   # a file may arrive/leave with the update
         bash -n "$f"
     done
-    for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do
+    for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json postgres-language-server.jsonc; do
         sed '/^\/\//d' "$f" | jq empty
     done
     sed '/^\/\//d' config/wlogout/layout | jq -s empty
