@@ -588,6 +588,75 @@ pipeline if you ever want them.
 
 ---
 
+## Updates and fail-safe rollback
+
+The rice is a git checkout, and `30-dotfiles.sh` records every deploy
+in `~/.local/state/hyprland-fat-rice/deployed.env` — the version string
+is `git describe --tags --always --dirty` from the checkout (tag the
+repo `vX.Y.Z` and it reads accordingly), and one line per run lands in
+`update.log` next to it as the history. Everything else builds on that
+record:
+
+```bash
+scripts/60-update.sh            # update from origin/main + redeploy
+scripts/60-update.sh --dry-run  # show what would land, change nothing
+scripts/61-rollback.sh          # by hand, after any failed update
+```
+
+`60-update.sh` is a phased pipeline with a hard rollback gate:
+
+1. **Preflight** (refuses politely, exit 2): no root, must be a git
+   checkout, clean worktree (`--stash` stashes for you), `deployed.env`
+   must exist, another updater must not hold the lock.
+2. **Fetch + report** — `git fetch --tags`, then `git log --oneline
+   HEAD..origin/main` so you see what lands before it lands.
+3. **Fail-safe snapshot** — snapper on btrfs, Timeshift otherwise (same
+   detection as `45-snapshots.sh`). No tool, no update — take the escape
+   hatch away and it refuses to run. Override with `--no-snapshot`.
+4. **Advance** — `git merge --ff-only` only. Diverged history aborts;
+   unconsumed.
+5. **Lint gate** — the exact lint.yml checks against the new tree.
+   Nothing is deployed before this passes.
+6. **Apply** — re-runs `00-base.sh` → `45-snapshots.sh` in order,
+   interactively where they always were.
+7. **Gate** — `hyprctl reload` + `hyprctl configerrors` (skipped with a
+   printed note outside a live session), then `scripts/50-verify.sh`.
+8. **Report** — old → new version, gates, snapshot id, state file path.
+
+Any phase-6/7 failure calls `scripts/61-rollback.sh` automatically:
+check the repo out back where it was, restore `~/.config` from the
+pre-update backup, re-run `30-dotfiles.sh` so binary artifacts
+(keybind-menu's `-DRICE_REPO` build) match the restored source,
+re-verify. Rollback never touches packages — if the failing phase was a
+package/system one (00/10/20/40/45), the report prints the snapshot
+restore command for your tool and leaves running it to you.
+
+**Branch tracking.** `scripts/60-update.sh --branch <name>` tracks
+`origin/<name>` through the same lint → deploy → gate → rollback
+pipeline — that is how a feature branch gets a full-system test before
+its PR. Switching back is just `--branch main`. Preflight refuses with
+the real remote list when the branch doesn't exist.
+
+**Verify drift check.** `50-verify.sh`'s last check compares
+`deployed.env` against the checkout: if commits were pulled or the
+branch moved without redeploying, it FAILs with both sides printed and
+tells you to re-deploy.
+
+**Update checker (notify-only, OFF by default).** A user timer reads
+`deployed.env`, fetches, and puts a swaync notification when the tracked
+branch has new commits. It never applies anything:
+
+```bash
+systemctl --user enable --now rice-update-check.timer
+```
+
+**When everything fails**: the snapshot printed by 60 stands, restore it
+with the tool 45 set up (`sudo snapper undochange <N>..0` /
+`sudo timeshift --restore --snapshot '<name>'`), and the KDE Plasma
+session kept in SDDM is your last-resort graphical login.
+
+---
+
 ## Code editor setup (Zed, Neovim, Ghostty)
 
 Per your ask, **Zed** is the default editor for `python`, `c`, `c++`,

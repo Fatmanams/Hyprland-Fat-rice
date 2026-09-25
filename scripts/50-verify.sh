@@ -23,7 +23,7 @@ fail() { echo "    FAIL: $1"; FAILS=$((FAILS + 1)); }
 
 HYPR_CFG="$HOME/.config/hypr"
 
-echo "==> [1/8] Monitor and wallpaper layout"
+echo "==> [1/9] Monitor and wallpaper layout"
 # Wildcard and explicit layouts are both valid; what must never happen is
 # a hyprland.conf with no monitor= line or a hyprpaper.conf with no
 # wallpaper rule — that means the configs are broken or missing, not
@@ -39,7 +39,7 @@ else
     fail "hyprland.conf or hyprpaper.conf missing/broken (no monitor= or wallpaper= line)"
 fi
 
-echo "==> [2/8] GPU driver sanity"
+echo "==> [2/9] GPU driver sanity"
 # Same lspci controller classes 00-base.sh uses at install time. Keep all
 # controllers so hybrid/Optimus systems are verified against the same
 # vendor choice that the installer made.
@@ -70,7 +70,7 @@ else
     fi
 fi
 
-echo "==> [3/8] ufw firewall"
+echo "==> [3/9] ufw firewall"
 # Both halves matter: the unit can be "active" while ufw itself was
 # never enabled, and vice versa.
 if systemctl is-active --quiet ufw.service && ufw status 2>/dev/null | grep -q "Status: active"; then
@@ -79,7 +79,7 @@ else
     fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw status: $(ufw status 2>/dev/null | head -n1 || echo 'unreadable'))"
 fi
 
-echo "==> [4/8] clamav-freshclam"
+echo "==> [4/9] clamav-freshclam"
 if systemctl is-active --quiet clamav-freshclam.service; then
     pass "clamav-freshclam.service active"
 else
@@ -93,14 +93,14 @@ else
     pass "Neomutt signing is disabled or has a configured GPG key"
 fi
 
-echo "==> [5/8] bluetooth"
+echo "==> [5/9] bluetooth"
 if systemctl is-active --quiet bluetooth.service; then
     pass "bluetooth.service active"
 else
     fail "bluetooth.service not active (state: $(systemctl is-active bluetooth.service 2>&1))"
 fi
 
-echo "==> [6/8] SDDM rollback snapshot exists"
+echo "==> [6/9] SDDM rollback snapshot exists"
 # 20-sddm.sh snapshots /etc/sddm.conf.d + /usr/share/sddm/themes into
 # /root/sddm-snap.<TS>/ before touching anything. /root is unreadable
 # to a normal user, so without sudo we can only say "cannot check"
@@ -115,7 +115,7 @@ else
     echo "    SKIP: cannot check /root without root — run with sudo to verify (not counted as FAIL)"
 fi
 
-echo "==> [7/8] Theme preset integrity (repo checkout)"
+echo "==> [7/9] Theme preset integrity (repo checkout)"
 # Same logic as .github/workflows/lint.yml's "theme presets carry every
 # pywal format" step: each preset dir must ship all eight formats, and
 # switch-theme.sh must reference each one — a format missing from
@@ -147,7 +147,7 @@ else
     fail "theme preset integrity broken (see MISSING lines above)"
 fi
 
-echo "==> [8/8] Snapshot tooling live"
+echo "==> [8/9] Snapshot tooling live"
 # Mirrors 45-snapshots.sh's root-filesystem branch: btrfs got snapper
 # (timeline + cleanup timers), anything else got Timeshift, which
 # schedules through /etc/cron.d and therefore needs cronie running.
@@ -167,6 +167,35 @@ else
         pass "cronie.service active ($ROOT_FS root — Timeshift path)"
     else
         fail "cronie.service not active (state: $(systemctl is-active cronie.service 2>&1)) — $ROOT_FS root: 45-snapshots.sh took the Timeshift path"
+    fi
+fi
+
+echo "==> [9/9] Deployed-state drift (deployed.env vs checkout)"
+# deployed.env pins what the running config was deployed FROM; the checkout
+# moving afterwards (new commits pulled, or a branch switch like the one
+# 60-update.sh --branch does) means the live config no longer matches the
+# tree. Read-only: report both sides, never touch either.
+ENV_FILE="$HOME/.local/state/hyprland-fat-rice/deployed.env"
+if [[ ! -f $ENV_FILE ]]; then
+    fail "deployed.env not found — run scripts/30-dotfiles.sh once (deploy has never been recorded)"
+else
+    dep_commit=$(sed -n 's/^RICE_COMMIT=//p' "$ENV_FILE")
+    dep_branch=$(sed -n 's/^RICE_BRANCH=//p' "$ENV_FILE")
+    cur_commit=$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo "<not a git checkout>")
+    cur_branch=$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "?")
+    drift=0
+    if [[ $dep_commit != "$cur_commit" ]]; then
+        drift=1
+        echo "    commit drift: deployed=$dep_commit checkout=$cur_commit"
+    fi
+    if [[ $dep_branch != "$cur_branch" ]]; then
+        drift=1
+        echo "    branch drift: deployed=$dep_branch checkout=$cur_branch"
+    fi
+    if [[ $drift -eq 0 ]]; then
+        pass "deployed state matches checkout ($cur_branch @ ${cur_commit:0:12})"
+    else
+        fail "checkout moved since the last deploy — re-run scripts/60-update.sh (or 30-dotfiles.sh) to redeploy"
     fi
 fi
 

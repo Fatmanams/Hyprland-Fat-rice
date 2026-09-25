@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Hyprland-Fat-rice update check (notify only)
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target

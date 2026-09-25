@@ -108,9 +108,17 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   ├── 30-dotfiles.sh         installs config/ into ~/.config with backup
 │   ├── 40-gaming.sh           verifies gamemoded + prints Steam launch recipes
 │   ├── 45-snapshots.sh        root-fs pick: snapper on btrfs, timeshift--rsync otherwise
-│   └── 50-verify.sh           read-only post-deploy health check, 8 checks
-│                              (never auto-fixes); [8/8] mirrors 45-snapshots.sh's
-│                              btrfs/snapper vs other/Timeshift branch
+│   ├── 50-verify.sh           read-only post-deploy health check, 9 checks
+│   │                          (never auto-fixes); [8/9] mirrors 45-snapshots.sh's
+│   │                          btrfs/snapper vs other/Timeshift branch; [9/9] flags
+│   │                          deployed.env-vs-checkout drift (checkout moved
+│   │                          without a redeploy)
+│   ├── 60-update.sh           ff-only update from origin/<branch>: preflight,
+│   │                          fetch, snapshot, lint gate, re-run install, gate
+│   ├── 61-rollback.sh         auto-invoked on gate failure; git+config restore,
+│   │                          rebuild, re-gate; stands alone too
+│   └── lib/rice-version.sh    shared state store: deployed.env/rollback.env,
+│                              update.log, git-restore helper
 └── config/
     ├── hypr/
     │   ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
@@ -148,7 +156,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── rofi/keybind-menu.cpp         rofi keybind viewer/editor source; binary rebuilt by 30-dotfiles.sh into ~/.config/rofi/ (gitignored); edits open the tracked repo file via -DRICE_REPO
     ├── eww/{eww.yuck,eww.scss}
     ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
-    ├── systemd/user/             user timers, including the daily ClamAV scan
+    ├── systemd/user/             user timers: daily ClamAV scan; rice-update-check.{service,timer,+script} = notify-only update check (NOT auto-enabled — README has the enable line)
     ├── wlogout/{layout,style.css}
     ├── ghostty/
     │   ├── config               primary terminal; baked Mocha = pre-wal fallback
@@ -217,11 +225,12 @@ by `.github/workflows/lint.yml`):
 1. **Bash syntax check** on every script edit (mirrors lint.yml's list,
    including the non-scripts .sh files it names explicitly):
    ```
-   bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
+   bash -n scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
        config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
        config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh \
        config/croft/croft-launch.sh config/ox/ox-theme.sh \
-       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh
+       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh \
+       config/systemd/user/rice-update-check.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -258,6 +267,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
 | Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
+| Update the rice / roll back a failed update   | `scripts/60-update.sh` (+ `scripts/61-rollback.sh`, state helpers in `scripts/lib/rice-version.sh`); checker timer: `config/systemd/user/rice-update-check.{service,timer}` |
 | Change recording applications                | `scripts/00-base.sh` + `config/hypr/keybinds-extra.conf` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
 | Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |

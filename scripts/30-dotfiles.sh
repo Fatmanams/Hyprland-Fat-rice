@@ -111,6 +111,9 @@ chmod +x "$HOME/.config/clamav/scan-targets.sh"
 chmod +x "$HOME/.config/croft/croft-launch.sh"
 chmod +x "$HOME/.config/ox/ox-theme.sh" "$HOME/.config/ox/ox-launch.sh"
 chmod +x "$HOME/.config/neomacs/neomacs-launch.sh"
+# notify-only update checker: invoked by rice-update-check.timer (user opts
+# into the timer; the unit and script come from the blanket cp -a above).
+chmod +x "$HOME/.config/systemd/user/rice-update-check.sh"
 systemctl --user daemon-reload
 read -r -p "Enable the daily ClamAV user scan timer? [y/N] " enable_clamav
 if [[ "$enable_clamav" =~ ^[Yy]$ ]]; then
@@ -151,6 +154,15 @@ else
     "$HOME/.config/hypr/switch-theme.sh" mocha
 fi
 "$HOME/.config/ox/ox-theme.sh"
+
+# Deployment bookkeeping for the update system (60-update.sh / 61-rollback.sh /
+# the notify-only update checker read this). Records which commit/branch the
+# config was deployed FROM, where the ~/.config backup went, and the repo path
+# the keybind-menu binary was compiled with. RICE_SNAPSHOT and RICE_VERIFY are
+# carried over — they're written by the update pipeline, not a plain deploy.
+# shellcheck source=scripts/lib/rice-version.sh
+. "$REPO_ROOT/scripts/lib/rice-version.sh"
+rice_env_write_deployed "$REPO_ROOT" "$BAK"
 
 echo
 echo "==> Next steps:"

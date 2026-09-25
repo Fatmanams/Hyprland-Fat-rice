@@ -1,0 +1,6 @@
+[Unit]
+Description=Check Hyprland-Fat-rice repo for new commits (notify only)
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/systemd/user/rice-update-check.sh
