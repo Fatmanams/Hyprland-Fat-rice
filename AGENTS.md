@@ -51,8 +51,6 @@ policy does not require every package to use that pipeline.
 | `python-pywal16`       | Active fork. Official `python-pywal` is the dead one — don't swap.|
 | `bibata-cursor-theme`  | Cursor theme. Has install hooks; review before approving.          |
 | `wlogout`              | Wayland logout menu, GTK3.                                         |
-| `zed`                  | Large Rust project. **Review PKGBUILD carefully** — may fetch      |
-|                        | release assets at build time.                                      |
 | `helium-browser-bin`   | Precompiled Helium (imputnet) repackaged from the signed release   |
 |                        | tarball (PGP via validpgpkeys) + sha256-pinned patches. No build,  |
 |                        | no hooks, no curl\|bash.                                            |
@@ -63,12 +61,17 @@ policy does not require every package to use that pipeline.
 |                        | with the cache confined to `$srcdir`. No build(), no hooks. The    |
 |                        | rest of the LSP stack is official-repo (`00-base.sh` step 4).      |
 | `chkrootkit`           | AUR-only rootkit checker; review its PKGBUILD before approval.      |
+| `ox-bin`               | Prebuilt Ox editor binary, maintained by upstream author. Verified   |
+|                        | on AUR 2026-09-25 (0.7.7-1). Review source URLs/checksums anyway.    |
+| `neomacs-bin`          | Prebuilt GPU Emacs fork (eval-exec/neomacs). Verified on AUR         |
+|                        | 2026-09-25 (0.0.19-1). Review release URLs/checksums anyway.         |
 
 Packages that do not have a performance reason to be compiled remain
 in the normal distribution install set:
 `rofi-wayland`, `ghostty`, `swww`, `swaync`, `cliphist`, `nwg-look`,
 `kvantum`, `kvantum-qt5`, `gamemode`, `gamescope`, `mangohud`,
-`lib32-mangohud`, `python-pywal` (old fork — we use `pywal16` by choice).
+`lib32-mangohud`, `python-pywal` (old fork — we use `pywal16` by choice),
+`zed` (moved to `extra` in 2026 — was AUR-built before).
 
 ---
 
@@ -117,6 +120,10 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   │                          fetch, snapshot, lint gate, re-run install, gate
 │   ├── 61-rollback.sh         auto-invoked on gate failure; git+config restore,
 │   │                          rebuild, re-gate; stands alone too
+│   ├── install-zed.sh         standalone Zed-only installer (no full rice deploy)
+│   ├── lint-themes.sh         theme-preset <-> colors.sh <-> switch-theme.sh
+│   │                          sync checker (repo-side; runs in lint CI and the
+│   │                          60-update.sh lint gate)
 │   └── lib/rice-version.sh    shared state store: deployed.env/rollback.env,
 │                              update.log, git-restore helper
 └── config/
@@ -245,6 +252,13 @@ by `.github/workflows/lint.yml`):
    ```
    g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
    ```
+5. **Theme sync check** — presets carry all 8 formats, every hex traces
+   back to the preset's own colors.sh, and switch-theme.sh's copy list
+   matches the preset inventory exactly (mirrors lint.yml + the
+   60-update.sh lint gate):
+   ```
+   bash scripts/lint-themes.sh
+   ```
 
 If you add a new script, structure, or behavior, run the relevant
 syntax checks before committing, and add it to the lint workflow's
@@ -277,6 +291,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Change status bar layout                      | `config/waybar/config` + `config/waybar/style.css`           |
 | Change the wallpaper (user-side, post-install) | static: drop image at `~/.config/hypr/wallpaper.jpg`, run `wal -i`; animated: drop video at `~/.config/hypr/wallpaper.mp4` (mpvpaper) — NOT repo edits |
 | Change the color theme (no wallpaper)          | SUPER+SHIFT+T or `~/.config/hypr/switch-theme.sh <mocha\|gruvbox\|tokyonight\|osaka-jade>`; presets live in `config/hypr/themes/` |
+| Audit theme presets for palette/format drift    | `scripts/lint-themes.sh` (runs in lint.yml and 60-update.sh's lint gate) |
 
 ---
 

@@ -22,7 +22,6 @@
 #     python-pywal16         https://aur.archlinux.org/python-pywal16.git
 #     bibata-cursor-theme    https://aur.archlinux.org/bibata-cursor-theme.git
 #     wlogout                https://aur.archlinux.org/wlogout.git
-#     zed                    https://aur.archlinux.org/zed.git
 #     helium-browser-bin     https://aur.archlinux.org/helium-browser-bin.git
 #     mpvpaper               https://aur.archlinux.org/mpvpaper.git
 #     vscode-langservers-extracted
@@ -31,11 +30,9 @@
 #     ox-bin                 https://aur.archlinux.org/ox-bin.git
 #     neomacs-bin            https://aur.archlinux.org/neomacs-bin.git
 #
-#     (Zed is NATIVE AUR-only — no curl|bash installer, no official repo —
-#     so per the policy it goes through this same reviewed-makepkg pipeline.
-#     Review the zed PKGBUILD carefully before approving: it's a Rust project
-#     that fetches many Cargo crates from crates.io and may download extra
-#     assets at build time. Look at all source=() entries.)
+#     (Zed moved to OFFICIAL repos in 2026 — zed 1.21.0-1 is now in
+#     extra/x86_64. We've moved it out of this list into 00-base.sh's
+#     official-repo block; the review pipeline here no longer fetches it.)
 #
 #     (helium-browser-bin: precompiled Helium (imputnet chromium fork),
 #     repackaged from the upstream release tarball. Reviewed PKGBUILD
@@ -63,6 +60,14 @@
 #     build(), no install hooks, no curl|bash. Note it IS an npm package,
 #     so the tarball vendors its own node_modules — that's inherent to
 #     the upstream distribution, not something the PKGBUILD adds.)
+#
+#     (ox-bin + neomacs-bin: existence and metadata verified against the
+#     AUR RPC API on 2026-09-25. ox-bin 0.7.7-1 — maintained by curlpipe,
+#     the upstream Ox author; provides/conflicts `ox`. neomacs-bin
+#     0.0.19-1 — provides `neomacs`, sources eval-exec/neomacs on GitHub.
+#     STILL review each PKGBUILD before approving: both repack prebuilt
+#     upstream release binaries, so the source=() URLs and checksums are
+#     the entire attack surface.)
 #
 #
 # Items your original policy listed as AUR-only but which are now in
@@ -216,7 +221,6 @@ PACKAGES=(
     python-pywal16
     bibata-cursor-theme
     wlogout
-    zed
     helium-browser-bin
     mpvpaper
     vscode-langservers-extracted

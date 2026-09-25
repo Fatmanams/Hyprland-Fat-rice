@@ -63,12 +63,12 @@ source is used. The packages this rice does compile use CPU-native flags
 | Cursor theme     | bibata-cursor-theme  | **AUR — makepkg'd**     | Modern variant, 24px |
 | Logout menu      | wlogout              | **AUR — makepkg'd**     |       |
 | Terminal         | ghostty              | pacman (extra)          | primary; shell = fish (pacman) |
-| Code editor      | zed                  | **AUR — makepkg'd**     | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback) |
+| Code editor      | zed                  | pacman (extra)          | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback). Was AUR-only, moved upstream — used `scripts/10-aur.sh` before; standalone: `scripts/install-zed.sh` |
 | GUI code editor   | lapce                | pacman (extra)          | optional Rust editor with built-in LSP, terminal, remote development, and Vim mode |
-| Terminal editor   | croft                | upstream cargo install  | optional VS Code-style TUI; no Arch/AUR package, launcher gives the reviewed upstream command |
+| Terminal editor   | croft                | upstream cargo install  | optional VS Code-style TUI; no Arch/AUR package, launcher prints the reviewed, version-pinned install command (croft-software 0.1.942) and holds the terminal open so you can read it |
 | Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
 | Neovim GUI       | neovide              | pacman (extra)          | GPU-accelerated Neovim client; inherits the pywal-driven Neovim palette |
-| Terminal editor  | ox                  | **AUR — review required** | lightweight TUI editor; Ox config is generated from the active pywal16 palette; verify `ox-bin` availability before running the AUR stage |
+| Terminal editor  | ox                  | **AUR — makepkg'd**     | lightweight TUI editor; Ox config is generated from the active pywal16 palette; `ox-bin` verified on AUR 2026-09-25 (PKGBUILD review still applies at approve time) |
 | GPU Emacs fork   | neomacs              | **AUR — makepkg'd**     | experimental Rust/wgpu Emacs fork; reuses the existing pywal-driven Emacs config |
 | Alt editor       | emacs-wayland        | pacman (extra)          | **opt-in** (00-base.sh prompts); PGTK/native-Wayland build; pywal-driven, no package manager, LSP via built-in eglot |
 | Language servers | pyright rust-analyzer clang lua-language-server bash-language-server gopls typescript-language-server | pacman (extra) | plain `$PATH` binaries; used by Zed + Emacs/eglot |
@@ -131,9 +131,8 @@ there is a documented performance reason to add them here.
 | `python-pywal16`       | `<https://aur.archlinux.org/python-pywal16.git>` | Python package, active fork of pywal              |
 | `bibata-cursor-theme`  | `<https://aur.archlinux.org/bibata-cursor-theme.git>` | Cursor theme, has install hooks (systemctl-like) |
 | `wlogout`              | `<https://aur.archlinux.org/wlogout.git>` | Wayland logout menu, GTK3                                         |
-| `zed`                  | `<https://aur.archlinux.org/zed.git>`    | **Review carefully**: large Rust project, many cargo crates, may pull release assets during build |
-| `ox-bin`               | `<https://aur.archlinux.org/ox-bin.git>` | Requested prebuilt Ox binary; verify the package exists before approval. `ox-git` is the source-build alternative. |
-| `neomacs-bin`          | `<https://aur.archlinux.org/neomacs-bin.git>` | Prebuilt experimental GPU Emacs fork; review release URLs, checksums, and install paths before approval. |
+| `ox-bin`               | `<https://aur.archlinux.org/ox-bin.git>` | Prebuilt Ox editor binary. Verified on AUR 2026-09-25 (0.7.7-1, maintained by Ox's upstream author). `ox-git` is the source-build alternative; still review source URLs/checksums at approve time. |
+| `neomacs-bin`          | `<https://aur.archlinux.org/neomacs-bin.git>` | Prebuilt experimental GPU Emacs fork. Verified on AUR 2026-09-25 (0.0.19-1, sources eval-exec/neomacs). Still review release URLs, checksums, and install paths before approval. |
 | `helium-browser-bin`   | `<https://aur.archlinux.org/helium-browser-bin.git>` | Precompiled Helium (imputnet chromium fork), repackaged from the upstream release tarball — verified WITH its `.asc` via `validpgpkeys` (Helium signing key), plus two sha256-pinned local patches. No build(), no hooks, no curl\|bash. |
 | `mpvpaper`             | `<https://aur.archlinux.org/mpvpaper.git>` | Video wallpaper daemon (v1.9). Pinned GitHub release tarball with b2sum, meson/ninja build, deps libmpv + libwayland (mpv auto-pulled by makepkg -s), optdep socat. No install hooks, no curl\|bash, no red flags. |
 | `vscode-langservers-extracted` | `<https://aur.archlinux.org/vscode-langservers-extracted.git>` | HTML/CSS/JSON/ESLint language servers (v4.10.0), used by Zed and Emacs' eglot. Source is the upstream npm registry tarball pinned with a sha256sum; `package()` is `npm i -g` into `$pkgdir` with the npm cache confined to `$srcdir`, plus chown + license install. No `build()`, no install hooks, no curl\|bash. It vendors node_modules — inherent to the npm tarball, not added by the PKGBUILD. |
@@ -148,6 +147,7 @@ repos** — these are installed by `scripts/00-base.sh`, **not** built:
 - `cliphist` — in `extra`
 - `nwg-look` — in `extra`
 - `kvantum` and `kvantum-qt5` — in `extra`
+- `zed` — in `extra` (1.21.0-1, moved upstream in 2026; was previously built via `10-aur.sh`)
 
 ### Mail and calendar setup
 
@@ -253,6 +253,13 @@ Notes:
   so any palette change repaints them live. VLC isn't themed by
   presets (by design), and GTK/Qt apps use nwg-look / kvantum profiles
   which are manual picks, not wal-driven.
+- Preset sync is enforced, not assumed: `scripts/lint-themes.sh` checks —
+  for every preset — that all eight per-app formats are present, that
+  every hex value in every format file comes from that preset's own
+  `colors.sh`, and that `switch-theme.sh` copies exactly the files the
+  presets ship (no orphans, no omissions). It runs in the lint CI
+  workflow and in the `60-update.sh` lint gate, so a drifted theme
+  blocks an update instead of silently shipping.
 
 ---
 
@@ -696,8 +703,14 @@ Accept the `[9/9]` prompt in `00-base.sh` and the rice installs+initializes
 a localhost PostgreSQL cluster (ArchWiki flow — `initdb` as the `postgres`
 service user into `/var/lib/postgres/data`, service enabled+started, your
 login gets a same-named superuser role and database `createdb`-ed to you).
-It is for learning/dev querying only — no production credentials there, and
-it listens on localhost by default.
+Loopback TCP is deliberately scoped: the step rewrites initdb's stock
+`host all all ... trust` rows to `sameuser` for your login role only and
+drops the replication rows — the `postgres` superuser is **not** reachable
+over TCP at all (ufw guards external interfaces, not loopback). Residual,
+documented: any local process can still claim *your* login role and reach
+*your* scratch DB; fine for a single-user dev box, revisit if that stops
+being true. It is for learning/dev querying only — no production
+credentials there.
 
 Zed auto-installs two extensions to talk to it (`config/zed/settings.json`):
 
@@ -706,9 +719,11 @@ Zed auto-installs two extensions to talk to it (`config/zed/settings.json`):
   completion, diagnostics, type checking; it connects to the running DB).
 
 The LSP reads `postgres-language-server.jsonc` from a project's root; this
-repo ships one at the top level wired to `127.0.0.1:5432`,
-`username`/`database` = your login (match what step [9/9] created). Copy it
-into any other project that needs it. If you skip answering the prompt,
+repo ships one at the top level wired to `127.0.0.1:5432` with placeholder
+credentials — set `username`/`database` to your login (what step [9/9]
+created; it's also the only role TCP trust is scoped to). `password` stays
+empty by design: trust auth ignores it and the file is tracked, so no real
+secret belongs there. Copy it into any other project that needs it. If you skip answering the prompt,
 nothing changes — the extension just sits without a live DB until you finish
 setup by hand.
 
@@ -797,7 +812,7 @@ Bindings:
 | `SUPER + Z`        | Open Neovide                                 |
 | `SUPER + Y`        | Open Neomacs (GPU Emacs fork)               |
 | `SUPER + G`        | Open Lapce                                    |
-| `SUPER + C`        | Open croft in Ghostty (prints the install hint if missing) |
+| `SUPER + C`        | Open croft in Ghostty (prints the pinned install hint and holds if missing) |
 | `SUPER + SHIFT + E`| Open Thunar (was SUPER+E before Zed won it)  |
 | `SUPER + SHIFT + T`| Cycle theme preset (mocha/gruvbox/tokyonight/osaka-jade) |
 | `SUPER + V`        | Open Bitwarden                               |

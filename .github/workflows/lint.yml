@@ -71,6 +71,14 @@ jobs:
           done
           exit $rc
 
+      - name: theme presets internally synchronized (lint-themes.sh)
+        run: |
+          set -euo pipefail
+          # Deeper than the format-presence check above: every preset's
+          # hexes must come from its own colors.sh, and switch-theme.sh's
+          # cp list must equal the preset inventory exactly.
+          bash scripts/lint-themes.sh
+
       - name: nvim init.lua syntax (LuaJIT parse — nvim's dialect)
         run: |
           set -euo pipefail

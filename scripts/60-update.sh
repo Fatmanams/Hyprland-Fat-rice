@@ -264,9 +264,10 @@ fi
 echo "==> [5/8] Lint gate (fast subset of .github/workflows/lint.yml)"
 # This gate runs what can run on the box right now without installing
 # anything: bash -n on all scripts (incl. scripts/lib/, systemd helpers),
-# jq parse on the three `// -prefixed` JSONs + wlogout's layout, and the
-# g++ -fsyntax-only build of keybind-menu.cpp. CI additionally runs
-# shellcheck, emacs byte-compile, luajit, and the theme-presence check.
+# jq parse on the three `// -prefixed` JSONs + wlogout's layout, the
+# g++ -fsyntax-only build of keybind-menu.cpp, and the lint-themes.sh
+# palette-sync check (pure bash + comm). CI additionally runs shellcheck,
+# emacs byte-compile, and luajit (tools the box may not have).
 # If the new tree breaks any of those, it fails here too IF and ONLY IF
 # the tool is present — so keep them non-optional in CI, never silent here.
 # NOTE: a (...)-list followed by `||` DISABLES `set -e` inside it, so this
@@ -293,6 +294,10 @@ set +e
     # update that carries it adds the file, later updates keep checking it.
     if [[ -f config/rofi/keybind-menu.cpp ]]; then
         g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
+    fi
+    # Same story for the theme-sync check (arrived with the theme system).
+    if [[ -f scripts/lint-themes.sh ]]; then
+        bash scripts/lint-themes.sh
     fi
 )
 lint_rc=$?
@@ -328,34 +333,34 @@ rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "${upd_backup:-}"
 
 # ---- 7/8 gate --------------------------------------------------------------------
 
-    FAILED_GATE=none
-    if [[ $FAILED_PHASE == none ]]; then
-        echo "==> [7/8] Gates"
-        if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-            if ! hyprctl reload; then
-                echo "    hyprctl reload exited non-zero" >&2
-                FAILED_GATE=hyprctl
-            fi
-            # Always look at configerrors too: Hyprland accepts a broken
-            # config and reports errors rather than dying, so the reload
-            # exit code alone is not sufficient.
-            cfgerrors=$(hyprctl configerrors 2>&1 || true)
-            if [[ -n $cfgerrors ]]; then
-                echo "    hyprctl configerrors:" >&2
-                echo "$cfgerrors" >&2
-                [[ $FAILED_GATE == none ]] && FAILED_GATE=hyprctl-configerrors
-            fi
-        else
-            echo "    no HYPRLAND_INSTANCE_SIGNATURE — not in a Hyprland session,"
-            echo "    skipping hyprctl gates; 50-verify still runs."
+FAILED_GATE=none
+if [[ $FAILED_PHASE == none ]]; then
+    echo "==> [7/8] Gates"
+    if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+        if ! hyprctl reload; then
+            echo "    hyprctl reload exited non-zero" >&2
+            FAILED_GATE=hyprctl
         fi
-        if [[ $FAILED_GATE == none ]]; then
-            if ! bash "$REPO_ROOT/scripts/50-verify.sh"; then
-                echo "    50-verify.sh FAILED (see its summary above)." >&2
-                FAILED_GATE=50-verify
-            fi
+        # Always look at configerrors too: Hyprland accepts a broken
+        # config and reports errors rather than dying, so the reload
+        # exit code alone is not sufficient.
+        cfgerrors=$(hyprctl configerrors 2>&1 || true)
+        if [[ -n $cfgerrors ]]; then
+            echo "    hyprctl configerrors:" >&2
+            echo "$cfgerrors" >&2
+            [[ $FAILED_GATE == none ]] && FAILED_GATE=hyprctl-configerrors
+        fi
+    else
+        echo "    no HYPRLAND_INSTANCE_SIGNATURE — not in a Hyprland session,"
+        echo "    skipping hyprctl gates; 50-verify still runs."
+    fi
+    if [[ $FAILED_GATE == none ]]; then
+        if ! bash "$REPO_ROOT/scripts/50-verify.sh"; then
+            echo "    50-verify.sh FAILED (see its summary above)." >&2
+            FAILED_GATE=50-verify
         fi
     fi
+fi
 
 # ---- 8/8 report (rollback first on failure) ---------------------------------------
 
