@@ -1,6 +1,8 @@
+#!/usr/bin/env bash
 # scripts/lib/rice-version.sh — shared state store + version resolution
 # for the update system (60-update.sh / 61-rollback.sh / 30-dotfiles.sh).
-# Sourced, never executed directly.
+# Sourced, never executed directly (the shebang exists for shellcheck's
+# SC2148 under lint.yml's error-severity pass).
 #
 # State lives under "$HOME/.local/state/hyprland-fat-rice/":
 #   deployed.env   — what is deployed right now (written by 30-dotfiles.sh;
