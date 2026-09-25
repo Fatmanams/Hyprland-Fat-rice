@@ -342,13 +342,34 @@ else
     if [[ ! -s /var/lib/postgres/data/PG_VERSION ]]; then
         # --auth-local=peer: CLI connections over the unix socket come down to
         # the linux username. --auth-host=trust: loopback TCP stays zero-password
-        # so Zed's postgres-language-server can connect with no stored secret;
-        # previous-install exposure is contained — PostgreSQL defaults to
-        # listening on localhost, and ufw (step 5) denies incoming anyway.
+        # so Zed's postgres-language-server can connect with no stored secret.
         sudo -u postgres initdb -D /var/lib/postgres/data --locale=C.UTF-8 --encoding=UTF8 \
             --auth-local=peer --auth-host=trust
+        # But stock trust rows are `host all all 127.0.0.1/32 trust` — ANY local
+        # process could claim ANY role over loopback, including the postgres
+        # superuser (ufw guards external interfaces, NOT loopback). Scope them
+        # before the service ever starts: TCP trust now matches only
+        # <login-role> -> <same-named db>; postgres and replication get no
+        # TCP row at all and are rejected. Residual risk, accepted for a
+        # single-user dev box: a local process running as anyone can still
+        # claim YOUR role and reach YOUR scratch database — don't share the
+        # box (or containerize it) without switching host auth to scram.
+        HBA=/var/lib/postgres/data/pg_hba.conf
+        sudo sed -i -E \
+            -e "s/^host([[:space:]]+)all([[:space:]]+)all([[:space:]]+127\.0\.0\.1\/32[[:space:]]+)trust/host\1sameuser\2$USER\3trust/" \
+            -e "s/^host([[:space:]]+)all([[:space:]]+)all([[:space:]]+::1\/128[[:space:]]+)trust/host\1sameuser\2$USER\3trust/" \
+            -e "/^host[[:space:]]+replication[[:space:]]+all[[:space:]]+127\.0\.0\.1\/32[[:space:]]+trust/d" \
+            -e "/^host[[:space:]]+replication[[:space:]]+all[[:space:]]+::1\/128[[:space:]]+trust/d" \
+            "$HBA"
+        # Fail closed: if initdb's stock file ever changes shape and nothing
+        # matched, the wide-open rows are still in there — catch that now.
+        if grep -Eq '^host[[:space:]]+all[[:space:]]+all[[:space:]]+' <(sudo cat "$HBA"); then
+            echo "    !! pg_hba.conf: expected stock trust rows not found;" >&2
+            echo "       refusing to continue with host auth unscoped." >&2
+            exit 1
+        fi
     else
-        echo "    cluster already intialized, leaving it alone."
+        echo "    cluster already intialized, leaving it (and its pg_hba.conf) alone."
     fi
     sudo systemctl enable --now postgresql.service
     # createuser/createdb are idempotent at the "works" level but not quiet

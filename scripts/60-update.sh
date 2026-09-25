@@ -333,34 +333,34 @@ rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "${upd_backup:-}"
 
 # ---- 7/8 gate --------------------------------------------------------------------
 
-    FAILED_GATE=none
-    if [[ $FAILED_PHASE == none ]]; then
-        echo "==> [7/8] Gates"
-        if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
-            if ! hyprctl reload; then
-                echo "    hyprctl reload exited non-zero" >&2
-                FAILED_GATE=hyprctl
-            fi
-            # Always look at configerrors too: Hyprland accepts a broken
-            # config and reports errors rather than dying, so the reload
-            # exit code alone is not sufficient.
-            cfgerrors=$(hyprctl configerrors 2>&1 || true)
-            if [[ -n $cfgerrors ]]; then
-                echo "    hyprctl configerrors:" >&2
-                echo "$cfgerrors" >&2
-                [[ $FAILED_GATE == none ]] && FAILED_GATE=hyprctl-configerrors
-            fi
-        else
-            echo "    no HYPRLAND_INSTANCE_SIGNATURE — not in a Hyprland session,"
-            echo "    skipping hyprctl gates; 50-verify still runs."
+FAILED_GATE=none
+if [[ $FAILED_PHASE == none ]]; then
+    echo "==> [7/8] Gates"
+    if [[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
+        if ! hyprctl reload; then
+            echo "    hyprctl reload exited non-zero" >&2
+            FAILED_GATE=hyprctl
         fi
-        if [[ $FAILED_GATE == none ]]; then
-            if ! bash "$REPO_ROOT/scripts/50-verify.sh"; then
-                echo "    50-verify.sh FAILED (see its summary above)." >&2
-                FAILED_GATE=50-verify
-            fi
+        # Always look at configerrors too: Hyprland accepts a broken
+        # config and reports errors rather than dying, so the reload
+        # exit code alone is not sufficient.
+        cfgerrors=$(hyprctl configerrors 2>&1 || true)
+        if [[ -n $cfgerrors ]]; then
+            echo "    hyprctl configerrors:" >&2
+            echo "$cfgerrors" >&2
+            [[ $FAILED_GATE == none ]] && FAILED_GATE=hyprctl-configerrors
+        fi
+    else
+        echo "    no HYPRLAND_INSTANCE_SIGNATURE — not in a Hyprland session,"
+        echo "    skipping hyprctl gates; 50-verify still runs."
+    fi
+    if [[ $FAILED_GATE == none ]]; then
+        if ! bash "$REPO_ROOT/scripts/50-verify.sh"; then
+            echo "    50-verify.sh FAILED (see its summary above)." >&2
+            FAILED_GATE=50-verify
         fi
     fi
+fi
 
 # ---- 8/8 report (rollback first on failure) ---------------------------------------
 

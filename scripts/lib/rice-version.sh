@@ -36,7 +36,11 @@ rice_env_set() { # FILE KEY VALUE — upsert one key, keep it 0600
     touch "$f"
     chmod 600 "$f"
     if grep -q "^$k=" "$f"; then
-        # $0=k"="v replaces the whole record; FS matters only for matching $1
+        # $0=k"="v replaces the whole record; FS matters only for matching $1.
+        # A VALUE containing '=' is safe: replacement is whole-line ($0=) and
+        # rice_env_get strips only the first "$k=" prefix, so the value body
+        # is never re-split. (A KEY with '=' would break this — keys here are
+        # the fixed RICE_* constants, so that case can't occur.)
         awk -v k="$k" -v v="$v" 'BEGIN{FS=OFS="="} $1==k{$0=k"="v} {print}' \
             "$f" > "$f.tmp" && mv "$f.tmp" "$f"
         chmod 600 "$f"  # mv replaces the 0600 file with a fresh umask-made one
