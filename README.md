@@ -697,33 +697,46 @@ trees such as `.git`, `node_modules`, `target`, and `.venv`. The existing
 system language servers from `00-base.sh` remain the source of truth; no
 Mason-like runtime installer or extension stack is introduced.
 
-### Local dev database (Postgres) for Zed
+### Local dev databases (Postgres / MySQL / SQLite) for Zed
 
-Accept the `[9/9]` prompt in `00-base.sh` and the rice installs+initializes
-a localhost PostgreSQL cluster (ArchWiki flow — `initdb` as the `postgres`
-service user into `/var/lib/postgres/data`, service enabled+started, your
-login gets a same-named superuser role and database `createdb`-ed to you).
-Loopback TCP is deliberately scoped: the step rewrites initdb's stock
-`host all all ... trust` rows to `sameuser` for your login role only and
-drops the replication rows — the `postgres` superuser is **not** reachable
-over TCP at all (ufw guards external interfaces, not loopback). Residual,
-documented: any local process can still claim *your* login role and reach
-*your* scratch DB; fine for a single-user dev box, revisit if that stops
-being true. It is for learning/dev querying only — no production
-credentials there.
+Accept the `[9/9]` prompts in `00-base.sh` and the rice installs+initializes
+localhost databases for dev/learning:
 
-Zed auto-installs two extensions to talk to it (`config/zed/settings.json`):
+- **PostgreSQL** — ArchWiki flow: `initdb` as the `postgres` service user
+  into `/var/lib/postgres/data`, `postgresql.service` enabled+started, and
+  your login gets a same-named superuser role and database (`psql`/`createdb`
+  work with zero args). Loopback TCP is deliberately scoped: the step rewrites
+  initdb's stock `host all all ... trust` rows to `sameuser` for your login
+  role only and drops the replication rows — the `postgres` superuser is
+  **not** reachable over TCP at all. Residual, documented: any local process
+  can still claim *your* login role on loopback and reach *your* scratch DB;
+  fine for a single-user dev box, revisit if that stops being true.
+- **MariaDB (MySQL)** — Arch's drop-in MySQL (`mariadb` provides `mysql`):
+  `mariadb-install-db` only if the datadir is empty, `mysqld.service`
+  enabled+started, your login gets a same-named user (socket auth — no
+  stored password) and a same-named database, so bare `mysql` works.
+- **SQLite** — no service and nothing to initialize; `sqlite3 <file.db>`
+  works as installed (the `sqlite` package rides the main install list).
 
-- `sql` — bundled tree-sitter SQL grammar (highlighting; no server).
+Both servers listen on localhost by default; ufw (step 5) denies incoming
+anyway. Declining a prompt leaves that package inert — `pacman -Rns` removes
+it cleanly. Nothing here carries production credentials.
+
+Zed auto-installs (`config/zed/settings.json`):
+
+- `sql` — bundled tree-sitter SQL grammar (highlighting for all dialects;
+  no server).
 - `postgres-language-server` — the Supabase Postgres LSP (schema-aware
   completion, diagnostics, type checking; it connects to the running DB).
+  Note it's **Postgres-only** — Zed has no MySQL/SQLite LSP extension yet;
+  those get the `sql` grammar highlighting only.
 
 The LSP reads `postgres-language-server.jsonc` from a project's root; this
 repo ships one at the top level wired to `127.0.0.1:5432` with placeholder
 credentials — set `username`/`database` to your login (what step [9/9]
 created; it's also the only role TCP trust is scoped to). `password` stays
 empty by design: trust auth ignores it and the file is tracked, so no real
-secret belongs there. Copy it into any other project that needs it. If you skip answering the prompt,
+secret belongs there. Copy it into any other project that needs it. If you skip answering the prompts,
 nothing changes — the extension just sits without a live DB until you finish
 setup by hand.
 

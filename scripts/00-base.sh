@@ -20,10 +20,11 @@
 #      (desktop gaming rig tradeoff — see the block's own comment).
 #   8. Optional: installs Emacs (emacs-wayland — the PGTK/native-Wayland
 #      build) as a Zed/nvim alternative IDE.
-#   9. Optional: initializes a local PostgreSQL dev cluster (ArchWiki flow:
-#      initdb as the postgres user, enable+start the service, same-name
-#      superuser role + database for your login) — what Zed's Postgres
-#      extension expects.
+#   9. Optional: initializes local dev databases — PostgreSQL (ArchWiki
+#      flow: initdb as the postgres user, enable+start the service,
+#      same-name superuser role + database for your login) and MariaDB
+#      (Arch's MySQL: same shape via mariadb-install-db + mysqld.service).
+#      SQLite needs no setup — sqlite3 is a plain CLI.
 #
 # Run this as a normal user (it will sudo internally where needed).
 # Review it before running. Nothing is silent.
@@ -138,7 +139,7 @@ sudo pacman -S --needed --noconfirm \
     ufw \
     clamav libnotify apparmor firejail \
     kde-cli-tools \
-    postgresql
+    postgresql mariadb sqlite
 
 echo "==> [4/9] Language servers (shared by Zed and Emacs/eglot)"
 # These are standalone LSP server binaries on $PATH — not editor plugins.
@@ -328,11 +329,17 @@ else
     echo "    but ignored without the binary — remove ~/.config/emacs to tidy up.)"
 fi
 
-echo "==> [9/9] PostgreSQL — OPTIONAL local dev database (Zed + 10-aur tooling)"
-# Installed above with the rice packages. This step initializes the cluster
-# (idempotent), starts the service, and gives your login user a same-named
-# superuser role + database so `psql`/`createdb` work with zero args — the
-# setup Zed's postgres-language-server extension expects (its
+echo "==> [9/9] Local dev databases — PostgreSQL / MariaDB (MySQL) / SQLite"
+# All three packages ride along in the main rice transaction above; this
+# step only initializes/enables what you say yes to. Declining leaves the
+# package inert (remove with `pacman -Rns` if you never want it).
+#
+# SQLite: no service, no initdb — `sqlite3 <file.db>` works as installed.
+#
+# PostgreSQL: this step initializes the cluster (idempotent), starts the
+# service, and gives your login user a same-named superuser role +
+# database so `psql`/`createdb` work with zero args — the setup Zed's
+# postgres-language-server extension expects (its
 # postgres-language-server.jsonc defaults point at exactly this).
 read -r -p "    Set up a local PostgreSQL dev database? [Y/n] " yn
 if [[ "$yn" =~ ^[Nn]$ ]]; then
@@ -386,5 +393,32 @@ else
     fi
     echo "    localhost:5432 ready — role + DB are both named '$USER'."
 fi
+
+# MariaDB (Arch's drop-in MySQL; the `mariadb` package provides `mysql`):
+# same zero-arg shape as PostgreSQL above — mariadb-install-db runs only
+# when the datadir is empty, mysqld.service is enabled+started, and your
+# login gets a same-named user (unix_socket plugin — identified by the
+# kernel, no stored password) plus a same-named database. Bare `mysql`
+# works from your shell afterwards. Loopback + ufw containment as with
+# PostgreSQL.
+read -r -p "    Set up a local MariaDB (MySQL) dev database? [Y/n] " yn
+if [[ "$yn" =~ ^[Nn]$ ]]; then
+    echo "    Skipped MariaDB setup. (mariadb still installed; inert without init.)"
+else
+    if [[ ! -d /var/lib/mysql/mysql ]]; then
+        sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+    else
+        echo "    datadir already initialized, leaving it alone."
+    fi
+    # mysqld's unit is Type=notify, so enable --now returns only once the
+    # socket is live — the mysql client call below can't race startup.
+    sudo systemctl enable --now mysqld.service
+    sudo mysql -e "CREATE USER IF NOT EXISTS '$USER'@'localhost' IDENTIFIED VIA unix_socket;
+                   CREATE DATABASE IF NOT EXISTS \`$USER\`;
+                   GRANT ALL PRIVILEGES ON \`$USER\`.* TO '$USER'@'localhost';"
+    echo "    localhost:3306 ready — user + DB are both named '$USER' (socket auth, no password)."
+fi
+
+echo "    sqlite3 needs no setup — already usable: sqlite3 ./scratch.db"
 
 echo "==> DONE. Next: ./10-aur.sh"
