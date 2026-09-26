@@ -32,6 +32,7 @@ only when it is expected to help
 - [Gaming launch-option recipes](#steam--wine--proton-launch-option-recipes-gaming-set)
 - [Performance compilation policy](#performance-compilation-policy)
 - [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
+  - [Pass 1: governance docs + package provenance](#review-pass-1--governance-docs-and-package-provenance-audit)
 - [Tree](#tree)
 - [License](#license)
 
@@ -1024,6 +1025,99 @@ was wrong and what the correct spec says. Summary of what was caught:
   landed a stray `~/.config/applications/zed-handler.desktop` that
   nothing reads (the real copy goes to `~/.local/share/applications/`);
   the stray dir is now removed after the copy.
+
+## Review pass 1 — governance docs and package-provenance audit
+
+Scope: every claim in `AGENTS.md`, plus the two README tables it owns by
+contract ("Source-built package inventory" and the moved-to-official
+list), checked against the tracked tree and against live upstream state
+(archlinux.org package API + AUR RPC, queried 2026-09-26). Part of an
+11-pass repo audit; each pass gets its own section here.
+
+Verified correct (no action):
+
+- All ten `scripts/10-aur.sh` `PACKAGES=()` entries are genuinely
+  AUR-only (absent from archlinux.org, present in AUR RPC): `eww`
+  0.6.0-1, `python-pywal16` 1:3.8.15-1, `bibata-cursor-theme` 2.0.7-1,
+  `wlogout` 1.2.2-0, `helium-browser-bin` 0.18.1.1-1 (the header's
+  "reviewed 0.16.4.1-1" note is a dated review record, not a version
+  pin — fine as written), `mpvpaper` 1.9-1,
+  `vscode-langservers-extracted` 4.10.0-1, `chkrootkit` 0.59-1,
+  `ox-bin` 0.7.7-1, `neomacs-bin` 0.0.19-1.
+- The rest of the moved-to-official list verifies: `ghostty` 1.3.1-2,
+  `swaync` 0.12.6-1, `cliphist` 0.7.0-2, `nwg-look` 1.1.1-3, `kvantum`
+  and `kvantum-qt5` 1.1.8-1, `gamemode` 1.8.2-3, `gamescope` 3.16.30-1,
+  `mangohud` and `lib32-mangohud` 0.8.4-1, and `zed` 1.21.0-1 — an
+  exact version match with the 10-aur.sh header note and README.
+- Lint claims match CI exactly for the `bash -n` file list, the g++
+  `-fsyntax-only` keybind-menu check, and `lint-themes.sh` — and
+  `lint-themes.sh` is indeed also invoked in `60-update.sh`'s lint
+  gate, as the components map claims.
+- The build-speed section matches `00-base.sh` (MAKEFLAGS, ccache in
+  BUILDENV, `-march=native` CFLAGS/CXXFLAGS, RUSTFLAGS) and
+  `10-aur.sh` (`setup_local_repo`, `SigLevel = Optional TrustAll`);
+  the header's `makepkg -Cs` (no `-o`) note matches makepkg(8).
+- Every "Components map" row points at files that exist, and the
+  "50-verify.sh, 9 checks" tree annotation matches the script's nine
+  `[n/9]` steps.
+
+What was wrong (and the correct spec):
+
+- `rofi-wayland` — no longer exists in official repos. rofi 2.0.0
+  absorbed the Wayland fork upstream; Arch ships `extra/rofi 2.0.0-1`
+  with `provides`/`replaces: rofi-wayland`
+  (archlinux.org/packages/extra/x86_64/rofi/). `pacman -S rofi-wayland`
+  in `00-base.sh` still resolves today via Arch's provides metadata and
+  pacman's single-provider default under `--noconfirm`, but the install
+  list, the README component row and moved-upstream list, AGENTS.md's
+  no-compile list, and the 10-aur.sh header all cite a dead package
+  name. Correct spec: install `rofi`. Same latent-breakage class as the
+  `kvantum-qt6` entry above — the day the provides shim is dropped, the
+  install dies under `set -euo pipefail`.
+- `swww` — renamed upstream to `awww`; Arch ships `extra/awww
+  0.12.1-1` with `provides`/`replaces: swww`
+  (archlinux.org/packages/extra/x86_64/awww/). No package named `swww`
+  exists in official repos. Same five stale citations as rofi-wayland;
+  correct spec: install `awww` (upstream's binaries are `awww` /
+  `awww-daemon`). Noted for the config pass: nothing under `config/`
+  references the daemon by either name, so the package may be vestigial
+  since mpvpaper became the animated-wallpaper default.
+- `python-pywal` — AGENTS.md's "remain in the normal distribution
+  install set" list and 10-aur.sh's "(installed by 00-base.sh, NOT
+  here)" header both frame it as available in official repos. It is not
+  in any official repo: archlinux.org search returns zero matches
+  (dropped from extra entirely; only the maintained `python-pywal16`
+  fork survives, on AUR). Documentation-only severity — nothing
+  installs it — but the stated reason it isn't built ("now in official
+  repos") is false.
+- README "Source-built package inventory" — missing `chkrootkit`,
+  which `10-aur.sh` audits and builds. The commit/PR style rule says
+  this table is the rule-5 contract and must track the AUR set: the
+  script carries 10 packages, the table lists 9.
+- README structure — the bullet "`gamemode`, `gamescope`, `mangohud`,
+  `lib32-mangohud` — in `extra` + `multilib`" is detached from the
+  moved-to-official list it belongs to and sits orphaned inside the
+  "### Keybind customization" section.
+- `sudoedit` fallback — documented as `sudoedit -e nano /path/to/file`
+  (AGENTS.md, README; hyprland.conf's comment has the `sudoedit -f -e
+  nano` variant). Not a valid invocation: sudo(8) 1.9.17 defines
+  `-e, --edit` as "edit one or more files" (implied by sudoedit); its
+  operands are files, and the editor comes from `SUDO_EDITOR`,
+  `VISUAL`, `EDITOR` in that order. `sudoedit -e nano <file>` would
+  create/edit a root-owned file literally named `nano`. The README's
+  second form, `SUDO_EDITOR=nano sudoedit <file>`, is correct; AGENTS.md
+  and the hyprland.conf comment should say that or `sudo nano <file>`.
+- AGENTS.md layout tree — omits four tracked paths: root `LICENSE`,
+  root `postgres-language-server.jsonc` (the components map does
+  reference this one), `config/wal/templates/colors-neomutt.muttrc`,
+  and `config/systemd/user/vdirsyncer-google.{service,timer}`.
+- AGENTS.md lint/verify section — lags lint.yml: it documents 5
+  checks, but CI runs 8 jobs. Undocumented here: shellcheck (error
+  severity), jq coverage of `config/zed/settings.json` +
+  `config/zed/keymap.json` + `postgres-language-server.jsonc` (only
+  swaync + wlogout are listed), emacs byte-compile of init.el and the
+  preset `colors.el` files, the luajit parse of `init.lua`, and the
+  eight-format preset-presence matrix.
 
 ---
 
