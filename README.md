@@ -32,6 +32,7 @@ only when it is expected to help
 - [Gaming launch-option recipes](#steam--wine--proton-launch-option-recipes-gaming-set)
 - [Performance compilation policy](#performance-compilation-policy)
 - [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
+  - [Review pass 1: package provenance & security](#review-pass-1--package-provenance--security-audit)
 - [Tree](#tree)
 - [License](#license)
 
@@ -1024,6 +1025,134 @@ was wrong and what the correct spec says. Summary of what was caught:
   landed a stray `~/.config/applications/zed-handler.desktop` that
   nothing reads (the real copy goes to `~/.local/share/applications/`);
   the stray dir is now removed after the copy.
+
+## Review pass 1 — package provenance & security audit
+
+Scope: `scripts/00-base.sh`, `scripts/10-aur.sh`, and AGENTS.md's
+source-build table. Checks: every AUR-only package in `10-aur.sh` has a
+documented reason in the AGENTS.md table; every claim in that table
+re-verified against live upstream state; no `curl | bash` pattern
+anywhere in the tree; and every package name `00-base.sh` installs
+re-checked for existence or renames against the official package API.
+All upstream state was queried live on 2026-09-26 (archlinux.org
+package API, AUR RPC, and shallow clones of the six AUR PKGBUILDs the
+docs describe in depth). Part of an 11-pass repo audit; each pass gets
+its own section here. Findings are documented without fixes.
+
+Note on overlap: the open PR #23 ("Review pass 1 — governance docs and
+package-provenance audit") already logged `rofi-wayland` / `swww`
+living on as provides-shims of `rofi` / `awww`, the `python-pywal`
+framing error, README's missing `chkrootkit` row, and the orphaned
+`gamemode` bullet under Keybind customization. Those were re-verified
+here (still accurate as of today) and are cross-referenced, not
+re-litigated.
+
+Verified correct (no action):
+
+- All ten `10-aur.sh` `PACKAGES=()` entries are present in AGENTS.md's
+  source-build table with substantive provenance notes, and vice versa
+  — 1:1, no undocumented builds, no orphan table rows.
+- All ten are still AUR-only (none have entered official repos) and at
+  documented versions: `eww` 0.6.0-1, `python-pywal16` 1:3.8.15-1,
+  `bibata-cursor-theme` 2.0.7-1, `wlogout` 1.2.2-0, `helium-browser-bin`
+  0.18.1.1-1, `mpvpaper` 1.9-1, `vscode-langservers-extracted`
+  4.10.0-1, `chkrootkit` 0.59-1, `ox-bin` 0.7.7-1, `neomacs-bin`
+  0.0.19-1. The "Verified on AUR 2026-09-25" stamps on ox-bin /
+  neomacs-bin are still exact.
+- The three in-depth PKGBUILD descriptions still match the live
+  AUR clones: `helium-browser-bin` pins the imputnet release tarball
+  with its `.asc` checked via `validpgpkeys` (Helium signing key
+  `BE677C19...D6378E`), two sha256-pinned local patches, the
+  ungoogled-chromium license, no `build()`, no hooks, /opt layout +
+  `/usr/bin/helium-browser` wrapper symlink; `mpvpaper` pins the GhostNaN
+  release tarball with a b2sum, meson/ninja, `libmpv.so` + wayland deps,
+  socat optdep; `vscode-langservers-extracted` pulls the single
+  sha256-pinned npm registry tarball with the cache confined to
+  `$srcdir`, no `build()`, no hooks. `neomacs-bin` pins a sha256sum on
+  the eval-exec/neomacs release tarball; `ox-bin` is maintained by
+  `curlpipe` (the upstream Ox author) as documented.
+- No `curl | bash` / `wget | sh` / process-substitution-into-shell
+  / eval-of-download pattern is executed anywhere in the tracked tree
+  (scripts, config, `.github/workflows/lint.yml` included). Every
+  textual match of the pattern is policy prose or the detector regexes
+  inside `10-aur.sh`'s own `scan_pkgbuild()`.
+- The ~120 other package names across `00-base.sh`'s transactions (main
+  list, LSP step, both GPU stacks, `cpupower`, `ccache`, `emacs-wayland`
+  31.1-2), plus `20-sddm.sh`'s qt6 set, `40-gaming.sh`'s gaming set,
+  `45-snapshots.sh`'s snapper/timeshift/cronie, and `install-zed.sh`'s
+  `zed` 1.21.0-1, all resolve to current core/extra/multilib packages —
+  including last-pass additions `tmux` 3.7_c-1 and `lazygit` 0.65.1-1.
+  No further misses beyond the ones below.
+
+What was wrong (and the correct spec):
+
+- `mesa-vdpau` in `00-base.sh`'s Intel/AMD GPU stack (step [6/9]) —
+  **installation aborts on a fresh Intel/AMD run**. No package by that
+  name exists in any official repo and nothing provides it: `mesa`
+  26.2.3-1's provides list is exactly `libva-driver`,
+  `libva-mesa-driver=1:26.2.3-1`, `mesa-libgl`, `opengl-driver`, and a
+  repo-wide `vdpau` search returns only `libvdpau`, `libvdpau-va-gl`,
+  `vdpauinfo` (client-side bits). `pacman -S ... mesa-vdpau` errors
+  with `target not found: mesa-vdpau` and the whole transaction dies
+  under `set -euo pipefail` — on the *default* GPU path, present since
+  the initial GPU-agnostic commit. Correct spec: drop the entry
+  (upstream Mesa no longer ships a VDPAU frontend as an Arch package;
+  Intel/AMD hardware acceleration comes from the VA-API driver inside
+  `mesa` itself).
+- `nvidia` in the same step's NVIDIA branch — **installation aborts on
+  a fresh NVIDIA run**. Arch's proprietary kernel-module package is
+  gone; the shipped family is `nvidia-open` 615.71.09-4 (and
+  `nvidia-open-lts` for linux-lts), with `nvidia-utils` /
+  `lib32-nvidia-utils` 615.71.09-1 still current. `nvidia-open`
+  **conflicts** `nvidia` and provides only `NVIDIA-MODULE`, so there is
+  no provider shim: `pacman -S nvidia` fails outright. Same class for
+  `nvidia-dkms`, also gone — and README's NVIDIA gotchas still
+  recommend it for non-stock kernels (`README.md` "GPU compatibility"
+  lines naming `nvidia` / `nvidia-dkms` all need the same correction;
+  the `nvidia_drm.modeset=1 fbdev=1` kernel-cmdline guidance itself is
+  unaffected by the rename). Correct spec: `pacman -S nvidia-open
+  nvidia-utils lib32-nvidia-utils` on the stock `linux` kernel.
+- `NetworkManager` in step [3/9]'s main transaction — **installation
+  aborts on every fresh run, both GPU branches**. The canonical package
+  is `networkmanager` (extra/1.58.1-1). Arch package names are
+  case-sensitive for target resolution (the archweb `name=` exact
+  filter returns zero hits for `NetworkManager`, and libalpm resolves
+  `-S` targets by exact-name lookup): `pacman -S NetworkManager` errors
+  `target not found` and the primary install transaction dies under
+  `set -euo pipefail`. Mis-cased since the first rice commit — the same
+  memory-vs-verified trap as `kvantum-qt6` above. Correct spec:
+  `networkmanager`.
+- `libva-mesa-driver` in the Intel/AMD stack — latent shim, dead name.
+  Absorbed into `mesa` at 1:24.2.7-1 (2024): `mesa` now provides
+  `libva-mesa-driver=1:26.2.3-1`, so pacman's single-provider default
+  still installs it today (redundantly — `mesa` is in the same
+  transaction line). Same latent-breakage class as #23's
+  `rofi-wayland`/`swww`: the day the versioned provide is dropped, this
+  transaction dies. Correct spec: drop the entry; `mesa` covers it.
+- `ox-bin` integrity framing — **provenance finding**. Its PKGBUILD
+  carries `sha256sums=("SKIP")`: the prebuilt binary fetched straight
+  from `github.com/curlpipe/ox/releases` is never integrity-pinned —
+  HTTPS plus PKGBUILD review is the whole check. AGENTS.md's and
+  `10-aur.sh`'s "review the source URLs and checksums" note is not
+  actionable as written, because there is no checksum. Softening
+  factors: the AUR maintainer is the upstream Ox author, and nothing
+  else in the AUR set ships checksumless. Decision needed at fix time:
+  accept and document the checksumless `-bin`, or switch to a
+  source-built `ox`/`ox-git`. (`neomacs-bin`, the other prebuilt, does
+  pin a sha256 — and it remains a 1-vote package last touched
+  2026-09-20; keep the heightened review posture it already documents.)
+- `bibata-cursor-theme` "Has install hooks; review before approving" —
+  stale claim. The live 2.0.7-1 package has no `.install` scriptlet at
+  all (PKGBUILD + `.SRCINFO` verified); it is now a `python-clickgen`
+  source build with no post-install actions. Review-before-approving
+  stays right regardless, but the documented reason is wrong.
+- Stale version pins in `00-base.sh`'s LSP header comment (dated-record
+  severity): `pyright` 1.1.411 → 1.1.412-1, `rust-analyzer` 20260608 →
+  20260907-1, `typescript-language-server` 5.1.3 → 6.0.0-1 (a major
+  bump), and the Emacs step's "same 30.2 source" now points at
+  `emacs-wayland` 31.1-2. Minor drift: the step banners mix `[1/8]`,
+  `[2/8]` with `[3/9]`..`[9/9]`, and step [8/9]'s prose still says
+  "step [4/8]".
 
 ---
 
