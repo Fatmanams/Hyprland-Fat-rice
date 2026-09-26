@@ -38,17 +38,26 @@ fi
 echo "==> Installing zed-handler.desktop + mime defaults"
 mkdir -p "$HOME/.local/share/applications"
 if [[ -f "$REPO_ROOT/config/applications/zed-handler.desktop" ]]; then
-    chmod 644 "$HOME/.local/share/applications"
+    # No chmod on the DIRECTORY: mkdir -p already leaves it at the umask
+    # default (755). chmod 644 <dir> strips the execute/search bit and the
+    # cp below would fail with Permission denied — the previous version of
+    # this block did exactly that.
     cp -f "$REPO_ROOT/config/applications/zed-handler.desktop" \
         "$HOME/.local/share/applications/"
     if command -v update-desktop-database >/dev/null 2>&1; then
         update-desktop-database "$HOME/.local/share/applications" || true
     fi
-    for t in python c c++ lua java rust json javascript typescript toml yaml markdown shellscript plaintext; do
-        xdg-mime default zed-handler.desktop "text/$t" 2>/dev/null || true
+    # MIME types verified against the shared-mime-info registry
+    # (/usr/share/mime/packages/freedesktop.org.xml): glob owners for the
+    # languages in this list are exactly these names. The previous version
+    # looped `text/$t` over language names — text/c, text/rust,
+    # text/typescript... are not registered types and failed silently.
+    for t in text/x-python text/x-csrc text/x-chdr text/x-c++src text/x-c++hdr \
+             text/x-lua text/x-java text/rust application/json \
+             text/javascript application/typescript application/toml \
+             application/yaml text/markdown text/x-shellscript text/plain; do
+        xdg-mime default zed-handler.desktop "$t" 2>/dev/null || true
     done
-    xdg-mime default zed-handler.desktop text/plain 2>/dev/null || true
-    xdg-mime default zed-handler.desktop application/json 2>/dev/null || true
     echo "    Zed is now the default for code/text files."
 else
     echo "    (config/applications/zed-handler.desktop missing — skipping mime wire-up.)"
