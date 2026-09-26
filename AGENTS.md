@@ -279,6 +279,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Change editor launchers                      | `config/hypr/keybinds-extra.conf` and the relevant `config/<editor>/` directory |
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
+| Add/remove a CLI dev tool                     | `scripts/00-base.sh`'s main `pacman -S` list (step 3) if official-repo, else `scripts/10-aur.sh` |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
 | Set up a local dev database (Postgres/MySQL/SQLite) for Zed | `scripts/00-base.sh` step 9 prompts + `config/zed/settings.json` auto-installs (`sql`, `postgres-language-server`) + `postgres-language-server.jsonc` in a project root (LSP is Postgres-only; MySQL/SQLite get the sql grammar's highlighting) |
 | Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |

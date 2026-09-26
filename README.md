@@ -63,6 +63,8 @@ source is used. The packages this rice does compile use CPU-native flags
 | Cursor theme     | bibata-cursor-theme  | **AUR — makepkg'd**     | Modern variant, 24px |
 | Logout menu      | wlogout              | **AUR — makepkg'd**     |       |
 | Terminal         | ghostty              | pacman (extra)          | primary; shell = fish (pacman) |
+| Terminal multiplexer | tmux             | pacman (extra)          |       |
+| Git TUI          | lazygit              | pacman (extra)          |       |
 | Code editor      | zed                  | pacman (extra)          | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback). Was AUR-only, moved upstream — used `scripts/10-aur.sh` before; standalone: `scripts/install-zed.sh` |
 | GUI code editor   | lapce                | pacman (extra)          | optional Rust editor with built-in LSP, terminal, remote development, and Vim mode |
 | Terminal editor   | croft                | upstream cargo install  | optional VS Code-style TUI; no Arch/AUR package, launcher prints the reviewed, version-pinned install command (croft-software 0.1.942) and holds the terminal open so you can read it |
