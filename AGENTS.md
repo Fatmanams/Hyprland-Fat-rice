@@ -51,8 +51,6 @@ policy does not require every package to use that pipeline.
 | `python-pywal16`       | Active fork. Official `python-pywal` is the dead one — don't swap.|
 | `bibata-cursor-theme`  | Cursor theme. Has install hooks; review before approving.          |
 | `wlogout`              | Wayland logout menu, GTK3.                                         |
-| `zed`                  | Large Rust project. **Review PKGBUILD carefully** — may fetch      |
-|                        | release assets at build time.                                      |
 | `helium-browser-bin`   | Precompiled Helium (imputnet) repackaged from the signed release   |
 |                        | tarball (PGP via validpgpkeys) + sha256-pinned patches. No build,  |
 |                        | no hooks, no curl\|bash.                                            |
@@ -63,12 +61,17 @@ policy does not require every package to use that pipeline.
 |                        | with the cache confined to `$srcdir`. No build(), no hooks. The    |
 |                        | rest of the LSP stack is official-repo (`00-base.sh` step 4).      |
 | `chkrootkit`           | AUR-only rootkit checker; review its PKGBUILD before approval.      |
+| `ox-bin`               | Prebuilt Ox editor binary, maintained by upstream author. Verified   |
+|                        | on AUR 2026-09-25 (0.7.7-1). Review source URLs/checksums anyway.    |
+| `neomacs-bin`          | Prebuilt GPU Emacs fork (eval-exec/neomacs). Verified on AUR         |
+|                        | 2026-09-25 (0.0.19-1). Review release URLs/checksums anyway.         |
 
 Packages that do not have a performance reason to be compiled remain
 in the normal distribution install set:
 `rofi-wayland`, `ghostty`, `swww`, `swaync`, `cliphist`, `nwg-look`,
 `kvantum`, `kvantum-qt5`, `gamemode`, `gamescope`, `mangohud`,
-`lib32-mangohud`, `python-pywal` (old fork — we use `pywal16` by choice).
+`lib32-mangohud`, `python-pywal` (old fork — we use `pywal16` by choice),
+`zed` (moved to `extra` in 2026 — was AUR-built before).
 
 ---
 
@@ -108,9 +111,21 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   ├── 30-dotfiles.sh         installs config/ into ~/.config with backup
 │   ├── 40-gaming.sh           verifies gamemoded + prints Steam launch recipes
 │   ├── 45-snapshots.sh        root-fs pick: snapper on btrfs, timeshift--rsync otherwise
-│   └── 50-verify.sh           read-only post-deploy health check, 8 checks
-│                              (never auto-fixes); [8/8] mirrors 45-snapshots.sh's
-│                              btrfs/snapper vs other/Timeshift branch
+│   ├── 50-verify.sh           read-only post-deploy health check, 9 checks
+│   │                          (never auto-fixes); [8/9] mirrors 45-snapshots.sh's
+│   │                          btrfs/snapper vs other/Timeshift branch; [9/9] flags
+│   │                          deployed.env-vs-checkout drift (checkout moved
+│   │                          without a redeploy)
+│   ├── 60-update.sh           ff-only update from origin/<branch>: preflight,
+│   │                          fetch, snapshot, lint gate, re-run install, gate
+│   ├── 61-rollback.sh         auto-invoked on gate failure; git+config restore,
+│   │                          rebuild, re-gate; stands alone too
+│   ├── install-zed.sh         standalone Zed-only installer (no full rice deploy)
+│   ├── lint-themes.sh         theme-preset <-> colors.sh <-> switch-theme.sh
+│   │                          sync checker (repo-side; runs in lint CI and the
+│   │                          60-update.sh lint gate)
+│   └── lib/rice-version.sh    shared state store: deployed.env/rollback.env,
+│                              update.log, git-restore helper
 └── config/
     ├── hypr/
     │   ├── hyprland.conf       compositor config (wildcard monitor= supports multiple outputs)
@@ -148,7 +163,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── rofi/keybind-menu.cpp         rofi keybind viewer/editor source; binary rebuilt by 30-dotfiles.sh into ~/.config/rofi/ (gitignored); edits open the tracked repo file via -DRICE_REPO
     ├── eww/{eww.yuck,eww.scss}
     ├── clamav/                   daily on-demand scan helper (no clamonacc by default)
-    ├── systemd/user/             user timers, including the daily ClamAV scan
+    ├── systemd/user/             user timers: daily ClamAV scan; rice-update-check.{service,timer,+script} = notify-only update check (NOT auto-enabled — README has the enable line)
     ├── wlogout/{layout,style.css}
     ├── ghostty/
     │   ├── config               primary terminal; baked Mocha = pre-wal fallback
@@ -217,11 +232,12 @@ by `.github/workflows/lint.yml`):
 1. **Bash syntax check** on every script edit (mirrors lint.yml's list,
    including the non-scripts .sh files it names explicitly):
    ```
-   bash -n scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
+   bash -n scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
        config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
        config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh \
        config/croft/croft-launch.sh config/ox/ox-theme.sh \
-       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh
+       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh \
+       config/systemd/user/rice-update-check.sh
    ```
 2. **JSON validity** on swaync + wlogout configs (with `jq`):
    ```
@@ -235,6 +251,13 @@ by `.github/workflows/lint.yml`):
 4. **C++ syntax check** on the rofi keybind menu (mirrors lint.yml):
    ```
    g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
+   ```
+5. **Theme sync check** — presets carry all 8 formats, every hex traces
+   back to the preset's own colors.sh, and switch-theme.sh's copy list
+   matches the preset inventory exactly (mirrors lint.yml + the
+   60-update.sh lint gate):
+   ```
+   bash scripts/lint-themes.sh
    ```
 
 If you add a new script, structure, or behavior, run the relevant
@@ -257,7 +280,9 @@ coverage if it isn't already (CI catches it otherwise).
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
+| Set up a local dev database (Postgres) for Zed| `scripts/00-base.sh` step 9 prompt + `config/zed/settings.json` auto-installs (`sql`, `postgres-language-server`) + `postgres-language-server.jsonc` in a project root |
 | Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
+| Update the rice / roll back a failed update   | `scripts/60-update.sh` (+ `scripts/61-rollback.sh`, state helpers in `scripts/lib/rice-version.sh`); checker timer: `config/systemd/user/rice-update-check.{service,timer}` |
 | Change recording applications                | `scripts/00-base.sh` + `config/hypr/keybinds-extra.conf` |
 | Change the Emacs config                       | `config/emacs/init.el` (opt-in; install prompt is `00-base.sh` step 8) |
 | Add/change an nvim plugin                     | `config/nvim/init.lua` lazy.nvim spec block (constraints in its header + the editor plugin rule) |
@@ -266,6 +291,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Change status bar layout                      | `config/waybar/config` + `config/waybar/style.css`           |
 | Change the wallpaper (user-side, post-install) | static: drop image at `~/.config/hypr/wallpaper.jpg`, run `wal -i`; animated: drop video at `~/.config/hypr/wallpaper.mp4` (mpvpaper) — NOT repo edits |
 | Change the color theme (no wallpaper)          | SUPER+SHIFT+T or `~/.config/hypr/switch-theme.sh <mocha\|gruvbox\|tokyonight\|osaka-jade>`; presets live in `config/hypr/themes/` |
+| Audit theme presets for palette/format drift    | `scripts/lint-themes.sh` (runs in lint.yml and 60-update.sh's lint gate) |
 
 ---
 

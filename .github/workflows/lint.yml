@@ -13,7 +13,7 @@ jobs:
       - name: bash -n syntax check (AGENTS.md minimum)
         run: |
           set -euo pipefail
-          for f in scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh; do
+          for f in scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh config/systemd/user/rice-update-check.sh; do
             echo "bash -n $f"
             bash -n "$f"
           done
@@ -21,12 +21,12 @@ jobs:
       - name: shellcheck (error severity)
         run: |
           set -euo pipefail
-          shellcheck --severity=error scripts/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh
+          shellcheck --severity=error scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh config/systemd/user/rice-update-check.sh
 
       - name: jq parse check (strip deliberate // comment headers first)
         run: |
           set -euo pipefail
-          for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json; do
+          for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json postgres-language-server.jsonc; do
             echo "jq $f"
             sed '/^\/\//d' "$f" | jq empty
           done
@@ -70,6 +70,14 @@ jobs:
             fi
           done
           exit $rc
+
+      - name: theme presets internally synchronized (lint-themes.sh)
+        run: |
+          set -euo pipefail
+          # Deeper than the format-presence check above: every preset's
+          # hexes must come from its own colors.sh, and switch-theme.sh's
+          # cp list must equal the preset inventory exactly.
+          bash scripts/lint-themes.sh
 
       - name: nvim init.lua syntax (LuaJIT parse — nvim's dialect)
         run: |

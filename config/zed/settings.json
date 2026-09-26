@@ -6,7 +6,9 @@
 {
   "theme": "Pywal",
   "auto_install_extensions": {
-    "catppuccin": true
+    "catppuccin": true,
+    "sql": true,
+    "postgres-language-server": true
   },
   "auto_update": true,
   "ui_font_size": 16,

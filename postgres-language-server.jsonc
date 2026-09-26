@@ -1,0 +1,29 @@
+// Postgres language-server config for this repo. The Zed extension reads it
+// from the project root only — copy into other projects as needed.
+//
+// `db.username`/`db.database` below are PLACEHOLDERS: set both to your login
+// name ($USER) — that's the role+database that step [9/9] of 00-base.sh
+// creates, and it's the only role loopback TCP trust is scoped to after the
+// setup script's pg_hba tightening (the postgres superuser has no TCP row
+// and is rejected on 127.0.0.1; socket+peer is how you reach it).
+//
+// `db.password` stays EMPTY on purpose: loopback auth is trust for your role,
+// so no password is ever needed or read — and this is a tracked file, so a
+// real secret must never be written here. (The extension's own compile-time
+// defaults are host=127.0.0.1, user/password/database=postgres — harmless
+// here because there is nothing for them to log into over TCP.)
+{
+  "$schema": "https://pg-language-server.com/latest/schema.json",
+  "files": {
+    "ignore": [".git/**", "node_modules/**", "target/**"]
+  },
+  "db": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "database": "your-login",
+    "username": "your-login",
+    "password": "",
+    "connTimeoutSecs": 10,
+    "allowStatementExecutionsAgainst": ["127.0.0.1/*", "localhost/*"]
+  }
+}
