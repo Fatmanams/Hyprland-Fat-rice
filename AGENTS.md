@@ -280,7 +280,7 @@ coverage if it isn't already (CI catches it otherwise).
 | Add a new AUR-only package                    | `scripts/10-aur.sh` (`PACKAGES=(...)` array) **after** confirming via `archlinux.org/packages/?q=<name>` that it's not in official repos |
 | Move a package from AUR to official           | remove from `scripts/10-aur.sh` `PACKAGES=()`, add to `scripts/00-base.sh`'s `pacman -S` block |
 | Add/remove a language server                  | `scripts/00-base.sh` (step 4 block) if official-repo, else `scripts/10-aur.sh` |
-| Set up a local dev database (Postgres) for Zed| `scripts/00-base.sh` step 9 prompt + `config/zed/settings.json` auto-installs (`sql`, `postgres-language-server`) + `postgres-language-server.jsonc` in a project root |
+| Set up a local dev database (Postgres/MySQL/SQLite) for Zed | `scripts/00-base.sh` step 9 prompts + `config/zed/settings.json` auto-installs (`sql`, `postgres-language-server`) + `postgres-language-server.jsonc` in a project root (LSP is Postgres-only; MySQL/SQLite get the sql grammar's highlighting) |
 | Change antivirus scanning                     | `config/clamav/scan-targets.sh` + `config/systemd/user/clamav-scan.*` |
 | Update the rice / roll back a failed update   | `scripts/60-update.sh` (+ `scripts/61-rollback.sh`, state helpers in `scripts/lib/rice-version.sh`); checker timer: `config/systemd/user/rice-update-check.{service,timer}` |
 | Change recording applications                | `scripts/00-base.sh` + `config/hypr/keybinds-extra.conf` |
