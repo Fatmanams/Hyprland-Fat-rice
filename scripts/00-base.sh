@@ -130,6 +130,7 @@ sudo pacman -S --needed --noconfirm \
     nwg-look kvantum kvantum-qt5 \
     swww cliphist \
     ripgrep fd zoxide chafa \
+    tmux lazygit \
     poppler \
     yazi thunar tumbler thunar-archive-plugin thunar-volman gvfs \
     vlc obs-studio audacity \
