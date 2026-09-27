@@ -1454,6 +1454,169 @@ What was wrong (and the correct spec):
     "automatic" rollback — foreground-safe, but worth a note in the
     header.
 
+## Review pass 3 — 50-verify.sh completeness
+
+Scope: `scripts/50-verify.sh` cross-referenced against everything the
+rice actually installs or enables: `00-base.sh`'s package sets and
+`systemctl enable` calls, `10-aur.sh`'s build list, `20-sddm.sh`,
+`30-dotfiles.sh`'s user timers, `40-gaming.sh`, `45-snapshots.sh`,
+`hyprland.conf`'s exec-once set, and `config/systemd/user/*`. Check:
+every major subsystem has a corresponding verify check, and any
+installed component with NO verify coverage is flagged. Part of an
+11-pass repo audit; each pass gets its own section here. Findings are
+documented without fixes — the script itself is untouched.
+
+Verified correct (no action):
+
+- Four of the six headline subsystems have real coverage. GPU is
+  checked as install-state cross-referenced with hardware ([2/9]:
+  `lspci` vendor matched against `pacman -Qi nvidia`/`mesa`, with
+  NVIDIA-hardware-plus-mesa correctly a PASS since 00-base.sh lets
+  the user decline the proprietary driver). Firewall [3/9] tests both
+  halves — the systemd unit AND `ufw status`, the two failure modes
+  that look fine alone. Snapshots [8/9] mirror 45-snapshots.sh's
+  btrfs/snapper vs other/Timeshift branch with the same `findmnt`
+  call, so verify can never disagree with install about which path
+  was taken. Bluetooth [5/9] is covered.
+- `50-verify.sh`'s "never fixes" contract holds: every check is
+  read-only (grep/systemctl is-active/pacman -Qi/findmnt/compgen via
+  `sudo -n`, git rev-parse); nothing mutates.
+- [9/9]'s drift check reads the same `RICE_COMMIT=`/`RICE_BRANCH=`
+  keys `rice_env_write_deployed` writes in
+  `scripts/lib/rice-version.sh`, and its "checkout moved" report
+  matches the update contract exactly.
+- [1/9]'s monitor/wallpaper logic matches the monitor contract:
+  wildcard and explicit layouts both PASS, and only a missing
+  `monitor=`/`wallpaper=` line fails — which there is
+  exactly the broken-config state the check exists to catch.
+- The script's own header is honest about its scope, including that
+  [7/9] runs against the repo checkout by design.
+
+What was wrong (and the correct spec):
+
+- **Network — an entire headline subsystem with zero verify
+  coverage.** `NetworkManager` is in 00-base.sh's main transaction
+  and the README's archinstall step selects "Network:
+  NetworkManager", so the service is enabled by archinstall on the
+  documented install path — no rice script ever enables it and no
+  verify check ever asks about it: no `NetworkManager.service` state,
+  no connectivity probe. Compounding: pass 1's provenance section
+  logs that the mis-cased `NetworkManager` package name hard-fails
+  00-base.sh's step-[3/9] transaction on a fresh install — meaning
+  the network stack (and everything after it) never lands, and a
+  verify run that checks nothing about networking still reports its
+  other checks as green. Correct spec: at minimum
+  `systemctl is-enabled`/`is-active NetworkManager.service` (both
+  read without root), reported as a state check.
+- **SDDM — the check labeled "SDDM" never checks the display
+  manager.** [6/9] verifies only that a rollback snapshot exists
+  under /root; nothing checks that `sddm.service` is enabled
+  (20-sddm.sh's step [5/5]) or that the theme the conf.d drop-in
+  points at resolves. With pass 2's `ConfigFile=` finding (the sed
+  writes ` astronaut.conf`, a path absent from upstream's current
+  `Themes/*.conf` layout), a fresh install can boot to a black
+  greeter while verify's only SDDM line says PASS — the exact
+  failure mode the whole rollback contract exists for. Compounded
+  by the sudo gate: without passwordless sudo, [6/9] degrades to an
+  uncounted SKIP, so the default invocation has zero EFFECTIVE SDDM
+  coverage at all. Correct spec: `systemctl is-enabled sddm.service`
+  (no sudo needed), plus existence of the theme dir and of the
+  resolved `ConfigFile` path in the clone; keep the /root snapshot
+  probe as the sudo-gated extra it already is.
+- **Audio — pipewire + wireplumber installed, never verified.**
+  00-base.sh installs both (main transaction); they run as user
+  units (`pipewire.socket`, `wireplumber.service`), so a dead audio
+  stack passes verify silently. Checkable without root via
+  `systemctl --user is-active wireplumber.service pipewire.socket`.
+- **gamemoded — never verified.** 40-gaming.sh's own header says the
+  script "is mostly about wiring them up, not just installing them"
+  — the wiring is the `gamemoded.service` user-unit enable, which is
+  precisely the thing verify never re-checks. Correct spec:
+  `systemctl --user is-enabled gamemoded.service`.
+- **cpupower.service — unconditionally enabled, never verified.**
+  Coverage auditing is what surfaces that it is enabled at all:
+  00-base.sh's step [7/9] header says "Optional" and the README's
+  step-1 comment promises a governor prompt that "defaults to no",
+  but the block contains no `read -p` — cpupower is installed, the
+  governor written, and the service enabled on every run. (The
+  doc/behavior mismatch belongs to pass 2's script-logic window;
+  recorded here only as the reason this squares as an
+  installed-and-enabled component with no verify line.) Correct
+  spec: `systemctl is-active cpupower.service` plus
+  `cpupower frequency-info` governor readback.
+- **postgresql.service / mysqld.service — never verified.**
+  00-base.sh's step [9/9] enables both when accepted, and its
+  prompts default to yes — so a default-yes install leaves two
+  listening database daemons verify never probes (`is-active`, or
+  `pg_isready` / `mariadb-admin ping` for a live answer). Pass 2
+  already logged that the pg_hba fail-closed validation runs only on
+  the fresh-initdb path; verify is the natural home for a repeated
+  readback of that scoping, and it has none.
+- **AV coverage stops at freshclam.** [4/9] checks the signature
+  updater and never the scan side: the daily `clamav-scan.timer`
+  that 30-dotfiles.sh offers to enable has no check — a dead timer
+  or a scan-targets.sh that fails nightly stays invisible.
+  `chkrootkit` is manual-run by design (README), so its absence is
+  defensible; recorded for completeness. Correct spec for the timer:
+  `systemctl --user is-active clamav-scan.timer`, reported as state
+  (the user may have declined — that's a report, not a FAIL).
+- **Theming coverage is repo-side only; the deployed system is
+  never asked.** [7/9] audits the repo checkout's presets and
+  switch-theme.sh's cp list (documented in the header as by design),
+  but switch-theme.sh copies from `$SCRIPT_DIR/themes` — the
+  DEPLOYED `~/.config/hypr/themes/` tree — which verify never
+  audits: a corrupted or partially-deployed preset set is invisible,
+  and [9/9]'s drift check catches only a moved checkout, not damaged
+  payloads at the same commit. Nothing checks the live palette
+  either: `~/.cache/wal` populated, `current-theme` recorded, or the
+  `~/.config/zed/themes/pywal.json` symlink 30-dotfiles.sh creates.
+  And while [1/9] requires an uncommented `wallpaper=` line in
+  hyprpaper.conf — the STATIC FALLBACK's config — the default
+  wallpaper path per hyprland.conf's exec-once is mpvpaper, whose
+  binary presence and `wallpaper.mp4` TODO get no check at all.
+- **The README overstates verify's coverage.** Line 447's install
+  block says 50-verify reports "first-boot TODOs cleared" — no such
+  check exists. Nothing probes the first-boot TODOs section's items:
+  `wallpaper.jpg` presence, NVIDIA's `nvidia_drm.modeset=1
+  nvidia_drm.fbdev=1` on /proc/cmdline (a skipped cmdline means a
+  broken session WITH a green [2/9] GPU check), or AppArmor's `lsm=`
+  line (the TODO tells the user to check
+  `/sys/kernel/security/lsm` by hand; verify doesn't). AppArmor
+  being inert until a hand-edited cmdline is deliberate and fine;
+  the finding is the README promising a TODO-cleared check that
+  isn't implemented. Correct spec: either add the three read-only
+  probes (each is one grep) or reword line 447.
+
+Minor, one line each:
+
+- [4/9]'s banner reads "clamav-freshclam" but the section also
+  carries the Neomutt signing-placeholder check — the mail stack's
+  only verify presence hides under the AV banner, so an audit of
+  "is mail covered?" reads as a no when it's a yes.
+- hyprland.conf's exec-once services (waybar, swaync, hypridle, both
+  xdg-desktop-portals, cliphist, eww) have no probe; 60-update.sh's
+  gate already runs `hyprctl configerrors` in-session, but
+  standalone 50-verify.sh never asks hyprctl anything, so outside
+  the update pipeline no check touches the live compositor.
+- `rice-update-check.timer` — notify-only, deliberately never
+  auto-enabled (README has the manual enable line), so its absence
+  from verify is defensible; listed so the coverage table is
+  complete. (Its `[[ -d $RICE_REPO/.git ]]` check failing on
+  worktrees is already a logged update-system follow-up — not
+  re-litigated.)
+- `vdirsyncer-google.timer` — enabled only when the user wires the
+  OAuth config; same "report state, don't FAIL" category as the
+  ClamAV timer.
+- The build pipeline (makepkg.conf's MAKEFLAGS/ccache/`-march=native`
+  edits, `[localrepo]` registration) has no post-hoc readback in
+  verify — pass 2 logged that the first two seds can no-op silently
+  while printing success, and verify is where that readback would
+  live. Defensible as install-time-only; noted for the record.
+- The header says "Run AFTER 00–40 have completed", but [8/9]
+  verifies 45-snapshots.sh's branch — the banner's range predates
+  the snapshot script's slot. One-word fix when the script is next
+  touched.
+
 ---
 
 ## Tree
