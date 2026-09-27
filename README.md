@@ -2087,8 +2087,138 @@ undocumented exception:
   other in-session component follows the palette" clause: either
   declare it unthemed-by-design alongside VLC, or give it the same
   treatment as the other editors. (This also closes the pass-scope
-  note: the brief named lapce, but there is no `config/lapce/` to
-  audit.)
+   note: the brief named lapce, but there is no `config/lapce/` to
+   audit.)
+
+## Review pass 7 — Mail/calendar stack (neomutt/isync/msmtp/khal/vdirsyncer)
+
+Scope: `config/neomutt/neomuttrc` + `accounts/{gmail,other}.muttrc.example`,
+`config/isync/mbsyncrc.example`, `config/msmtp/config.example`,
+`config/khal/config`, `config/vdirsyncer/config.example`, plus the
+machinery around them: `.gitignore`'s credential rules,
+`30-dotfiles.sh`'s copy-if-absent/chmod/timer blocks, `50-verify.sh`'s
+neomutt check, the `vdirsyncer-google.{service,timer}` units,
+`00-base.sh`'s package list, and README's "Mail and calendar setup".
+The brief: (1) no real credentials or account identifiers committed —
+only `.example` files may carry real-looking values, and those must be
+obviously placeholder; (2) neomutt's GPG-signing placeholder-key warning
+(already guarded by 50-verify.sh) must still be accurately documented as
+a manual TODO. Method: full `git log -p` over those paths, a secret
+sweep across all 106 tracked files, `git check-ignore -v` on the live
+rules, and upstream checks against neomutt.org's current reference, the
+Arch `neomutt 1:20260616-1` package file list, and `mutt_oauth2.py` at
+neomutt/neomutt main. Findings-only; only this section changed.
+
+Verified correct (no action):
+
+- **Credential hygiene holds on all three layers: tree, gitignore,
+  history.** Tracked mail-stack files are the seven in scope plus the
+  two vdirsyncer units — every identity value is placeholder
+  (`you@gmail.com`, `you@example.com`, "Your Name",
+  `imap/smtp.example.com`, `pass mail/other`, `YOUR_GPG_KEY_ID_HERE`,
+  `YOUR_CALENDAR_CLIENT_ID`/`_SECRET`). `check-ignore` confirms the
+  ignore rules bite: `config/msmtp/config`, `config/isync/mbsyncrc`,
+  `config/vdirsyncer/config`, `config/neomutt/accounts/*.muttrc` (with
+  the `!*.muttrc.example` re-inclusion), `config/neomutt/oauth/`, and
+  `config/vdirsyncer/*token*` all ignored. History scan over every
+  commit touching these paths (5 commits): only placeholder values ever
+  committed — the trajectory runs the right direction, with the old
+  `imap_user`/`smtp_url` inline-auth lines REMOVED in favor of the
+  msmtp/OAuth indirection. The repo-wide sweep found no private keys,
+  API keys, or non-placeholder secrets anywhere in the 106 tracked
+  files.
+- The two non-`.example` tracked configs carry no identifiers:
+  `neomuttrc` uses only the role labels gmail/other, and
+  `config/khal/config`'s `[[google]]` stanza is a generic label whose
+  `type = discover` + wildcard `path = ~/.calendars/google/*` design is
+  exactly what keeps user-specific calendar names OUT of the committed
+  file — khal never needs per-calendar committed config.
+- README's OAuth instructions resolve end-to-end: Arch's neomutt
+  package ships `/usr/share/neomutt/oauth2/mutt_oauth2.py` (what
+  `pacman -Ql neomutt | grep oauth2` finds, per the README); upstream's
+  script has a `#!/usr/bin/env python3` shebang, encrypts the token
+  store through GPG by default, and *self-enforces* mode 600 on the
+  token file. Its bare-token stdout is precisely what both `.example`
+  recipes need — isync's `AuthMechs XOAUTH2` + `PassCmd` and msmtp's
+  `auth xoauth2` + `passwordeval` — and both point at the same
+  `~/.config/neomutt/oauth/` path the README tells the user to populate.
+- **The GPG-signing placeholder TODO is accurately documented as
+  shipped.** Defaults in `neomuttrc` (`crypt_autosign = no` +
+  `pgp_default_key = "YOUR_GPG_KEY_ID_HERE"`) make signing inert; the
+  "Mail and calendar setup" sentence ("signing is disabled until
+  YOUR_GPG_KEY_ID_HERE is replaced with a real key and crypt_autosign is
+  explicitly enabled") describes precisely that state; and 50-verify.sh's
+  guard (which reads the DEPLOYED `~/.config/neomutt/neomuttrc`, not
+  the repo copy) fails only the dangerous combination — autosign yes
+  *with* the placeholder — and passes the shipped config. Placement in
+  the mail-setup prose rather than "Mandatory first-boot TODOs" is
+  correct: mail credentials are not blocking for the rice. Variable-name
+  sanity also checked: `pgp_default_key` is the documented default-key
+  knob (renamed from `pgp_self_encrypt_as` in 2018; used for signing
+  unless `pgp_sign_as` is set) under both the classic and gpgme
+  backends, and `crypt_use_gpgme = yes` merely restates the current
+  upstream default — harmless.
+- Install pipeline honors the contract: 30-dotfiles.sh copies
+  `.example` -> real only when no personalized file exists, chmods
+  msmtp/config + isync/mbsyncrc to 600, and enables
+  `vdirsyncer-google.timer` only once a real vdirsyncer config exists.
+  The units carry no identifiers (`ExecStart=...vdirsyncer sync
+  google_calendar`; 15-minute cadence with `Persistent=true`).
+  `00-base.sh` ships the whole stack from official repos (`neomutt
+  isync msmtp gnupg khal vdirsyncer`).
+- Routing coherence: neomuttrc's `folder = ~/Mail`,
+  `+{gmail,other}/Inbox` mailboxes, and the two folder-hooks align with
+  the mbsync stores (`~/Mail/gmail/`, `Inbox`) and the msmtp account
+  names (`msmtp -a gmail` / `-a other`) the account examples set; the
+  startup-source-once + folder-hook re-apply pattern (with the explanatory
+  comment) is the correct defense against `$from`/`$sendmail` pinned to
+  whichever file was sourced last.
+
+Findings (documented, unfixed per audit convention):
+
+- **The 50-verify.sh guard matches only the legacy variable spelling;
+  upstream renamed it in 2021.** `$crypt_autosign` became
+  `$crypt_auto_sign` on 2021-03-21 (neomutt.org reference 3.81/3.85).
+  The old name still works as a silent synonym, so the shipped
+  `set crypt_autosign = no` line is fine — but the verify grep is
+  `set[[:space:]]+crypt_autosign[[:space:]]*=[[:space:]]*yes`, and only
+  against neomuttrc. A user enabling signing per CURRENT upstream docs
+  writes `set crypt_auto_sign = yes`; that spelling passes verify green
+  with the placeholder key still set — the exact combination the check
+  exists to catch. README's mail section also names only the legacy
+  spelling. Correct spec when 50-verify.sh is next touched: match both
+  (`crypt_auto(sign|_sign)`) and add a one-line upstream-rename
+  parenthetical to the README sentence.
+- **The placeholder key is not fully inert when opportunistic encryption
+  engages.** `neomuttrc` sets `crypt_opportunistic_encrypt = yes`, and
+  `$pgp_self_encrypt` defaults to yes and encrypts-to-self using
+  `$pgp_default_key` (reference 3.347 -> 3.325). Compose to a recipient
+  whose key resolves and the send trips on `YOUR_GPG_KEY_ID_HERE` — no
+  such key in the keyring — even though signing stays off. Conditional
+  on a populated recipient keyring and the error is loud and
+  self-diagnosing, so severity is minor; the gap is that the README's
+  TODO sentence covers signing only. Correct spec: extend that sentence
+  to say the placeholder must be replaced before opportunistic
+  encryption can work too (or ship `pgp_self_encrypt = no` alongside
+  the current defaults).
+- Minor mode asymmetry: 30-dotfiles.sh's chmod 600 covers
+  `msmtp/config` and `isync/mbsyncrc` but not the two
+  `neomutt/accounts/*.muttrc` copies made by the same loop, whose own
+  comment says the quartet "contain user addresses". The account files
+  hold no credentials (sending routes through msmtp's 600 file), just
+  the From address + realname at umask defaults; whether that is
+  readable by other local users depends on ~/.config and parent perms.
+  One-line extension of the existing chmod when it is next touched.
+  (Pass 2's robustness bullet — the same chmod dies under `set -e` if
+  neither target exists — covers the same line, different defect.)
+
+Cross-references, not re-litigated: pass 5's `colors-neomutt.muttrc`
+template finding directly governs this stack (neomuttrc sources the
+rendered file) and remains open — the shipped default stays correct
+only because 30-dotfiles.sh seeds the mocha preset (its copies carry
+valid content); pass 3's note that the mail placeholder check hides
+under 50-verify.sh's "[4/9] clamav" banner; pass 2's chmod robustness
+gap.
 
 ---
 
