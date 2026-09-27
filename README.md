@@ -1983,8 +1983,11 @@ Verified correct (no action):
   for the remaining four. eglot's only two explicit entries
   (pyright-langserver, rust-analyzer) are both installed; the rest
   ride eglot's probe defaults by design. Zed ships no
-  `language_servers` key and relies on PATH discovery, precisely as
-  00-base.sh's own comment says.
+  `language_servers` key; for the servers whose Zed adapter binary
+  names match what the scripts install (rust-analyzer, clangd, gopls,
+  bash-language-server, the vscode-langservers-extracted four), PATH
+  discovery does hold — Python and TypeScript are the exceptions, see
+  the findings below.
 - nvim pinning holds: the lazy.nvim bootstrap SHA
   `85c7ff3711b730b4030d03144f6db6375044ae82` equals upstream tag
   v11.17.5 (GitHub API) as the comment claims, and lazy-lock.json lists
@@ -2019,7 +2022,7 @@ Verified correct (no action):
   extension ids `sql` and `postgres-language-server` both resolve in
   the current extensions registry.
 
-What was wrong — two behavioral bugs, one stale doc reference, one
+What was wrong — three behavioral bugs, one stale doc reference, one
 undocumented exception:
 
 - **`zed/settings.json` still ships legacy booleans for two keys that
@@ -2035,6 +2038,28 @@ undocumented exception:
   fall back to defaults. Correct spec: `"auto_indent":
   "syntax_aware"` (which is also the default, so the line can simply
   go) and `"relative_line_numbers": "enabled"`.
+- **Zed does not use the PATH-installed Python/TypeScript servers under
+  its defaults — it downloads its own.** 00-base.sh [4/9]'s comment
+  ("Zed discovers servers from $PATH itself — no settings.json entry
+  needed") only holds where Zed's adapter binary name matches what the
+  scripts install. Per zed.dev's language docs (checked today):
+  Python defaults to **basedpyright** as the primary language server
+  plus **Ruff** for formatting/linting — neither is installed by any
+  script — and TypeScript defaults to **vtsls**, while 00-base.sh
+  ships typescript-language-server (the documented ALTERNATE, only
+  used behind a `languages.TypeScript.language_servers` opt-in). Zed's
+  documented fallback when the expected binary is absent is a private
+  automatically-installed copy, so the first `.py`/`.ts` buffer opened
+  triggers an unreviewed network download into Zed's data dir
+  (extension auto-installs are policy-accepted; LSP downloads are not
+  surfaced anywhere today), and the pacman-managed pyright /
+  typescript-language-server only ever serve nvim and eglot — not the
+  rice's default editor. Correct spec: either pin the lists in
+  `config/zed/settings.json`
+  (`["pyright", "!basedpyright", ...]` for Python;
+  `["typescript-language-server", "!vtsls", ...]` for
+  TypeScript/TSX/JavaScript), or package basedpyright/ruff/vtsls so
+  the default adapters resolve from PATH.
 - **Ox never re-themes in wallpaper mode.** ox-theme.sh runs at deploy
   (30-dotfiles.sh:156) and on preset switches (switch-theme.sh:58), but
   hyprland.conf's exec-once wallpaper branch is
