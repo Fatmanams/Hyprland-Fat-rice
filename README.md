@@ -34,6 +34,7 @@ only when it is expected to help
 - [Notable bug-fix audit](#notable-bug-fix-audit-reviewer-pass)
   - [Pass 1: governance docs + package provenance](#review-pass-1--governance-docs-and-package-provenance-audit)
   - [Review pass 1: package provenance & security](#review-pass-1--package-provenance--security-audit)
+  - [Pass 2: install/update/rollback scripts](#review-pass-2--installupdaterollback-script-logic)
 - [Tree](#tree)
 - [License](#license)
 
@@ -1247,6 +1248,211 @@ What was wrong (and the correct spec):
   `emacs-wayland` 31.1-2. Minor drift: the step banners mix `[1/8]`,
   `[2/8]` with `[3/9]`..`[9/9]`, and step [8/9]'s prose still says
   "step [4/8]".
+
+## Review pass 2 — install/update/rollback script logic
+
+Scope: `scripts/00-base.sh` → `scripts/45-snapshots.sh`,
+`scripts/60-update.sh`, `scripts/61-rollback.sh`, and
+`scripts/lib/rice-version.sh`. Checks: idempotency (safe to re-run),
+error handling (`set -euo pipefail` present and honored, no silent
+failures), and whether `60-update.sh`'s phase-5 lint gate covers
+everything `.github/workflows/lint.yml` checks (the components-map
+convention). Live upstream state re-verified 2026-09-26 where noted.
+Part of an 11-pass repo audit; each pass gets its own section here.
+Findings are documented without fixes.
+
+Note on overlap: pass 1 (both halves) already logged the stale package
+names `00-base.sh` installs (`mesa-vdpau`, `nvidia`, `NetworkManager`,
+`rofi-wayland`, `swww`). Those are not re-litigated here; this pass is
+about script *logic*, not package provenance. The package-provenance
+half also logs the `00-base.sh` step-banner numbering drift (and adds
+the stale "step [4/8]" prose reference) — the banner bullet below is
+kept only for the additional "intialized" typo and the BUILDENV
+whole-line-replacement note.
+
+Verified correct (no action):
+
+- Every script in scope carries `set -euo pipefail` and refuses
+  EUID 0 before any mutation, and every externally-visible failure
+  mode (offline fetch, non-ff history, snapshot-tool missing/failed,
+  lint-gate break, phase/gate failure) exits with the documented code
+  rather than dying silently inside a half-finished pipeline.
+- Re-run idempotency holds on the stateful steps: multilib + its
+  Include are gated on grep/awk probes; ccache-in-BUILDENV is verified
+  *after* the edit with a fail-closed abort; PostgreSQL initdb is
+  gated on `PG_VERSION` and role/db creation on `pg_roles` /
+  `pg_database` existence; MariaDB is gated on the datadir and uses
+  `CREATE ... IF NOT EXISTS`; every `systemctl enable --now` is
+  naturally idempotent; 20-sddm.sh's snapshots are timestamped-unique
+  under /root; 30-dotfiles.sh's backups are fresh timestamped dirs and
+  the msmtp/isync/neomutt example-copies never overwrite a
+  personalized file; 45-snapshots.sh's snapper branch gates on
+  `list-configs` and re-applies `set-config` harmlessly, and its
+  timeshift branch rewrites config through timeshift's own CLI.
+- Gate-list audit (the pass's central question): the phase-5 gate
+  covers lint.yml's `bash -n` file list **exactly** (both
+  `scripts/*.sh` + `scripts/lib/*.sh` globs and all eleven named
+  config scripts), the jq set **exactly** (the four `//`-prefixed
+  JSONs plus wlogout's layout with `-s`), the g++ `-Werror
+  -fsyntax-only` keybind-menu check, and `lint-themes.sh` — whose
+  steps [1/3] and [3/3] subsume lint.yml's separate "theme presets
+  carry every pywal format" step (same eight-format presence loop,
+  same switch-theme.sh copy-list comparison, plus the deeper hex-sync
+  check lint.yml runs anyway). No drift hides behind the subsumption.
+- `scripts/lib/rice-version.sh`: the `=`-in-value invariant holds
+  (write path replaces the whole record via `$0=k"="v`; read path
+  strips only the first `KEY=` prefix); env files are touched 0600,
+  rewritten via temp+mv, and `rollback.env`'s identity fields are
+  `:?`-guarded at source time in 61-rollback.sh.
+- `rice_git_restore`'s four-way restore (named checkout / retract own
+  ff-advance / detach when someone else moved the branch / detach when
+  the branch is gone) never force-resets a ref it doesn't own —
+  matches its header comment and the update contract.
+- 60-update.sh's pipeline ordering is sound: the rollback ticket is
+  written *before* the checkout advances, the snapshot is taken before
+  anything mutates, "already up to date" exits before the snapshot,
+  the dry-run path writes nothing (including skipping the lock), and
+  the self-reexec guards in both 60 and 61 handle the script being
+  rewritten mid-parse.
+
+What was wrong (and the correct spec):
+
+- `scripts/20-sddm.sh` metadata edit — **stale against current
+  upstream, and now points the greeter at nothing**. The sed rewrites
+  `ConfigFile=` to ` astronaut.conf` — a bare basename (with a stray
+  leading space) — but upstream sddm-astronaut-theme master (verified
+  2026-09-26: metadata v1.4, Theme-API=2.0) ships
+  `ConfigFile=Themes/astronaut.conf`; the palettes moved under
+  `Themes/*.conf`. The rewritten value resolves to a file that does
+  not exist in the clone, so on today's theme the "select astronaut"
+  step actively breaks what it claims to select (greeter falls back
+  to built-in defaults or mis-renders — exactly what the rollback
+  snapshot is for). Correct spec: write
+  `ConfigFile=Themes/astronaut.conf` — or drop the sed entirely
+  (upstream already defaults to astronaut) — and strengthen the
+  `Name=`-only "seems incomplete" guard into "the resolved ConfigFile
+  path must exist in the clone".
+- `scripts/60-update.sh` phase-5 gate — **the gate's header comment
+  misdescribes the three CI checks it omits**. shellcheck (error
+  severity), emacs byte-compile, and the luajit parse of init.lua
+  never run locally — not even conditionally — yet the comment says
+  "it fails here too IF and ONLY IF the tool is present". A tree that
+  breaks any of those three passes the update gate and fails CI after
+  the push. Correct spec: either implement what the comment describes
+  (`command -v`-guarded shellcheck / emacs / luajit runs) or rewrite
+  the comment to say the three are CI-only by policy. Secondary
+  asymmetry in the same gate: the `bash -n` loop skips vanished files
+  (`[[ -e $f ]] || continue`) but the jq loop doesn't, so an update
+  that removes one of the four JSON files fails its own gate. Both
+  loops should behave the same, or the comment should say why the
+  JSON set is treated as non-optional.
+- `scripts/00-base.sh` pg_hba fail-closed check — **one-shot only,
+  and can pass vacuously**. (a) The check greps
+  `<(sudo cat "$HBA")`; if the cat itself fails, grep sees empty
+  input, finds no `host all all` row, and the refuse-to-continue
+  branch never fires — fail-open inside a fail-closed block.
+  (b) Worse: the check runs only on the fresh-cluster path. Any
+  first-run abort after initdb (sed no-op on a changed stock file,
+  user Ctrl-C, power cut) leaves the cluster initialized; every
+  re-run then takes the "cluster already intialized, leaving it ...
+  alone" branch and `enable --now postgresql.service` with pg_hba
+  never validated — carrying the exact wide-open
+  `host all all ... trust` rows the first run refused to start with.
+  Correct spec: move the fail-closed check in front of the
+  `enable --now` so it runs on every path (not just fresh initdb),
+  and read the file with `sudo grep -Eq ... "$HBA"` directly so the
+  reader's exit status propagates to the check.
+- `scripts/61-rollback.sh` config restore — **completeness silently
+  depends on rsync, which nothing on the btrfs path installs**.
+  Restore uses `rsync -a --delete` when rsync exists, else `cp -a`
+  without --delete, so files the failed update *added* to ~/.config
+  survive the rollback. `rsync` is absent from 00-base.sh's package
+  list; it reaches a machine only as a hard dependency of timeshift
+  (verified: extra/timeshift 26.09.0-1 depends on rsync) on
+  45-snapshots.sh's non-btrfs branch. On a btrfs/snapper box, the
+  recovery path that defines itself as "the pre-update state" is only
+  exactly that on machines that happen to have rsync. Correct spec:
+  add rsync to 00-base.sh's core list (it also underpins timeshift),
+  or make the fallback delete-then-copy.
+- `scripts/60-update.sh` line-331 / `61-rollback.sh` line-69 —
+  **the failed-phase path can die before rollback starts**. Both
+  `VAR=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1)`
+  fallbacks sit on the right of `||` unguarded: when no backup dir
+  matches (state recorded by a pre-update-system deploy, or the user
+  cleaned `~/.config-backup-*` while deployed.env/rollback.env
+  survive), `ls` fails, pipefail propagates, and `set -e` kills the
+  updater *after* the failed phase but *before* 61 runs — and kills
+  61 mid-rollback in the standalone case. Contrived state, but it
+  sits precisely on the recovery path. Correct spec: append `|| true`
+  (the empty-string fallback below already handles the empty result).
+- `scripts/30-dotfiles.sh` — **unguarded late steps can strand a
+  deploy before it is recorded**. `wal -i` runs with no
+  `command -v wal` guard: decline python-pywal16 at 10-aur's review,
+  later drop `wallpaper.jpg` in place (README's own post-install
+  step), and every 30 run dies under `set -e` after configs are
+  copied but before `rice_env_write_deployed` — deployed.env keeps
+  pointing at the old commit and 50-verify's drift check then
+  false-fails a correct state. Inside 60-update it escalates: phase
+  30 fails → automatic rollback re-runs 30 → wal fails again → the
+  rollback itself reports NOT clean (exit 3). A declined AUR package
+  plus a wallpaper wedges the whole update/rollback loop. Same class,
+  lower likelihood: the unconditional `chmod 600` on
+  `msmtp/config` + `isync/mbsyncrc` dies the same way if neither a
+  personalized copy nor the in-repo `.example` exists (both examples
+  exist today — robustness gap, not a live bug). Correct spec:
+  `command -v wal`-guard the palette generation (the no-wallpaper
+  branch already degrades gracefully through switch-theme.sh, which
+  needs no wal binary), and guard the chmod with file-existence.
+- `scripts/10-aur.sh` build_one — **message/behavior mismatch on
+  failure**. "No .pkg.tar.zst produced; something went wrong.
+  *Skipping* install." is followed by `return 1`, and under `set -e`
+  the caller aborts the whole run: nothing is skipped, the remaining
+  queue never runs, and the end-of-run `SKIPPED_PACKAGES` summary
+  omits the failed package entirely (it only tracks user-declined
+  builds). A maintainer force-push to an AUR repo kills the run the
+  same way via `git pull --ff-only`. Loud abort is a defensible
+  policy; the messaging and the final summary must match what
+  actually happens — and per-package containment (record FAILED
+  alongside SKIPPED, keep going) would make the reviewed queue
+  restartable without re-reviewing the packages that already built.
+- `scripts/00-base.sh` makepkg.conf edits — **unverified success
+  messages**. The MAKEFLAGS sed matches the stock `#MAKEFLAGS="-j2"`
+  line exactly and the CFLAGS/CXXFLAGS sed matches stock
+  `-march=x86-64 -mtune=generic` exactly; the day upstream
+  makepkg.conf drifts, the seds no-op while the script prints
+  "MAKEFLAGS set to -j$(nproc)" / "retargeted to -march=native"
+  anyway — and reprints the false success on every re-run. The ccache
+  block immediately below demonstrates the verify-after pattern
+  (grep for `!ccache` → loud ERROR, exit 1); these two edits should
+  follow it.
+- Minor, one line each:
+  - `60-update.sh --branch` validation accepts leading `-`
+    (`--branch --detach` passes `^[A-Za-z0-9._/-]+$`; leading-dash
+    refnames are valid per `git check-ref-format` — verified — so if
+    such a branch ever existed on origin, `git checkout "$BRANCH"`
+    would parse it as an option). Reject `-*` explicitly. Low
+    severity: requires a deliberately-pushed odd branch on the user's
+    own origin.
+  - `20-sddm.sh`: an existing `10-theme.conf` with no `^Current=`
+    line no-ops the sed while the script still reports the theme
+    selected — the missing-metadata case is fatal, this one is
+    silent. Check the key landed, like the ccache verify does.
+  - `00-base.sh`: banner numbering drift — `[1/8]`, `[2/8]`, then
+    `[3/9]`–`[9/9]` (also in pass 1's package-provenance section,
+    with the stale "step [4/8]" prose reference). Typo "intialized"
+    in the pg-cluster-exists branch. The BUILDENV whole-line
+    replacement discards pre-existing custom tokens without notice.
+  - `45-snapshots.sh` timeshift branch: `findmnt -o SOURCE /` feeds
+    straight into `--snapshot-device`; on LUKS/LVM roots that's a
+    `/dev/mapper/*` path timeshift's CLI may reject. Fails loudly
+    under `set -e` (acceptable) — recorded for the troubleshooting
+    docs.
+  - `40-gaming.sh`'s recipe heredoc references `prismlauncher`, which
+    no script in the rice installs.
+  - `61-rollback.sh`'s step 3 re-runs 30-dotfiles.sh, whose ClamAV
+    timer / vdirsyncer prompts stay interactive inside an
+    "automatic" rollback — foreground-safe, but worth a note in the
+    header.
 
 ---
 
