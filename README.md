@@ -1940,6 +1940,156 @@ hand-verified files, is unaffected by the first two):
   extend step 2 into a temp-dir render check, or trim the header to
   describe what the script really does.
 
+## Review pass 6 — Editor configs (nvim/emacs/zed/ox/croft/neomacs)
+
+Scope: `config/nvim/init.lua` (plus the committed `lazy-lock.json`),
+`config/emacs/init.el`, `config/zed/{settings,keymap}.json`,
+`config/ox/{.oxrc.template,ox-theme.sh,ox-launch.sh}`,
+`config/croft/croft-launch.sh`, `config/neomacs/neomacs-launch.sh`,
+and the machinery they point at: `config/wal/templates/{colors.el,
+colors-zed.json}`, the presets' editor-facing formats, `00-base.sh`'s
+install blocks, `10-aur.sh`'s AUR list, `30-dotfiles.sh`, and
+`hyprland.conf`'s exec-once + editor binds. The brief: every pywal
+reference must name a file pywal16 actually renders, and every LSP
+server an editor wires must be something the scripts really install.
+Findings-only; only this section changed.
+
+Verified correct (no action):
+
+- Every editor-facing wal path resolves against pywal16's ACTUAL
+  template inventory (eylles/pywal16 master, pywal/templates):
+  `colors-wal.vim` and `colors.sh` are stock; `colors-zed.json` is
+  stock upstream too and deliberately overridden by this repo's richer
+  version; `colors.el` exists only because
+  `config/wal/templates/colors.el` ships it (user templates override
+  stock by name and render into ~/.cache/wal). The old `colors.vim`
+  mis-path in init.lua is fixed and now documented in-file; all four
+  presets carry all three editor-facing formats, and switch-theme.sh's
+  cp block copies each of them.
+- Deployment chain matches the comments: 30-dotfiles.sh's blanket
+  `cp -a config/.` lands the wal templates at ~/.config/wal/templates/
+  (palette-contract item 4), and lines 139-140 create
+  ~/.config/zed/themes/pywal.json -> ~/.cache/wal/colors-zed.json,
+  matching settings.json's `"theme": "Pywal"` and the template's
+  embedded theme name (hot-reload claim = Zed's documented behavior).
+- LSP inventory == install inventory: init.lua's nvim-lspconfig block
+  wires exactly `pyright, rust_analyzer, clangd, lua_ls, bashls, gopls,
+  ts_ls` plus `html, cssls, jsonls, eslint`; 00-base.sh's [4/9] block
+  installs `pyright, rust-analyzer, clang` (Arch folded
+  clang-tools-extra into `clang` — the package now
+  `Provides: clang-tools-extra=22.1.8`, so clangd IS delivered),
+  `lua-language-server, bash-language-server, gopls, typescript-
+  language-server`, and 10-aur.sh builds vscode-langservers-extracted
+  for the remaining four. eglot's only two explicit entries
+  (pyright-langserver, rust-analyzer) are both installed; the rest
+  ride eglot's probe defaults by design. Zed ships no
+  `language_servers` key; for the servers whose Zed adapter binary
+  names match what the scripts install (rust-analyzer, clangd, gopls,
+  bash-language-server, the vscode-langservers-extracted four), PATH
+  discovery does hold — Python and TypeScript are the exceptions, see
+  the findings below.
+- nvim pinning holds: the lazy.nvim bootstrap SHA
+  `85c7ff3711b730b4030d03144f6db6375044ae82` equals upstream tag
+  v11.17.5 (GitHub API) as the comment claims, and lazy-lock.json lists
+  exactly the five spec'd plugins, their declared deps (plenary, three
+  cmp sources, LuaSnip), and lazy.nvim itself — nothing extra.
+- Ox's chain is real end-to-end: `--config`/`-c` is a genuine ox CLI
+  flag (upstream src/cli.rs — its --help example is literally
+  `ox -r -c ~/.config/.oxrc ...`), every `.oxrc.template` placeholder
+  is among colors.sh's exports (background/foreground/color0..8), and
+  colors.sh is in every preset's copy set. croft's pinned hint
+  (`cargo install croft-software@0.1.942 --locked`) matches crates.io
+  (0.1.942 is newest and un-yanked; binary name `croft`). neomacs
+  correctly shims to the AUR `neomacs-bin` binary and reuses
+  config/emacs/init.el.
+- Editor binds are coherent: lapce (SUPER+G) and calendar
+  (SUPER+SHIFT+G) share a letter under different modifiers, exactly as
+  the README's binding-collision note already documents; croft/ox go
+  through `$terminal -e`, neomacs/neovide launch directly, and the
+  `$key_*`/`$*_command` indirections in keybinds-extra.conf all
+  resolve.
+- Zed key/keymap validation against the current configuring-zed docs
+  and, where the docs were ambiguous, zed-industries/zed main sources:
+  `code_lens: "on"` (off/on/menu), `diagnostics_max_severity: "hint"`,
+  `vertical_scroll_margin`, `file_scan_exclusions`, `show_whitespaces:
+  "selection"`, `scrollbar.show`, the project_panel/terminal blocks,
+  `autosave: "on_focus_change"`, `format_on_save: "on"`,
+  `ensure_final_newline_on_save`, `remove_trailing_whitespace_on_save`,
+  `buffer_line_height: "comfortable"`, `auto_update`,
+  `auto_install_extensions` — all valid as shipped. The keymap actions
+  (workspace::ToggleVimMode, task::Spawn/Rerun,
+  terminal_panel::ToggleFocus, editor::Format) are built-ins, and the
+  extension ids `sql` and `postgres-language-server` both resolve in
+  the current extensions registry.
+
+What was wrong — three behavioral bugs, one stale doc reference, one
+undocumented exception:
+
+- **`zed/settings.json` still ships legacy booleans for two keys that
+  are string-only enums on current Zed.** `"auto_indent": true` and
+  `"relative_line_numbers": true` predate Zed's enum migration:
+  `AutoIndentMode` (crates/settings_content/src/language.rs) accepts
+  only syntax_aware/preserve_indent/none and `RelativeLineNumbers`
+  (crates/settings_content/src/editor.rs) only
+  disabled/enabled/wrapped — plain serde string enums, no boolean
+  alias, and the current docs list only the string forms. Both values
+  fail to deserialize; Zed's fallible-settings parser records the file
+  as Failed (the settings-error banner path) and the affected fields
+  fall back to defaults. Correct spec: `"auto_indent":
+  "syntax_aware"` (which is also the default, so the line can simply
+  go) and `"relative_line_numbers": "enabled"`.
+- **Zed does not use the PATH-installed Python/TypeScript servers under
+  its defaults — it downloads its own.** 00-base.sh [4/9]'s comment
+  ("Zed discovers servers from $PATH itself — no settings.json entry
+  needed") only holds where Zed's adapter binary name matches what the
+  scripts install. Per zed.dev's language docs (checked today):
+  Python defaults to **basedpyright** as the primary language server
+  plus **Ruff** for formatting/linting — neither is installed by any
+  script — and TypeScript defaults to **vtsls**, while 00-base.sh
+  ships typescript-language-server (the documented ALTERNATE, only
+  used behind a `languages.TypeScript.language_servers` opt-in). Zed's
+  documented fallback when the expected binary is absent is a private
+  automatically-installed copy, so the first `.py`/`.ts` buffer opened
+  triggers an unreviewed network download into Zed's data dir
+  (extension auto-installs are policy-accepted; LSP downloads are not
+  surfaced anywhere today), and the pacman-managed pyright /
+  typescript-language-server only ever serve nvim and eglot — not the
+  rice's default editor. Correct spec: either pin the lists in
+  `config/zed/settings.json`
+  (`["pyright", "!basedpyright", ...]` for Python;
+  `["typescript-language-server", "!vtsls", ...]` for
+  TypeScript/TSX/JavaScript), or package basedpyright/ruff/vtsls so
+  the default adapters resolve from PATH.
+- **Ox never re-themes in wallpaper mode.** ox-theme.sh runs at deploy
+  (30-dotfiles.sh:156) and on preset switches (switch-theme.sh:58), but
+  hyprland.conf's exec-once wallpaper branch is
+  `wal -i ... && ghostty-theme.sh` only. So the documented wallpaper
+  flow — drop wallpaper.jpg and re-login, or run `wal -i` by hand —
+  refreshes ghostty's colors.conf while ~/.config/ox/.oxrc (which
+  ox-launch.sh always feeds to ox via --config) keeps whatever palette
+  the last preset or deploy rendered, indefinitely. Correct spec: add
+  an ox-theme.sh call next to ghostty-theme.sh in that exec-once (the
+  script already self-guards when colors.sh is missing). The
+  mid-session manual-`wal -i` gap exists for ghostty too and is
+  pre-existing; out of this pass's scope.
+- **init.el's 00-base.sh step references point at labels the script
+  never prints.** init.el cites the "[8/8]" Emacs prompt (line 11) and
+  the "[4/8]" LSP block (line 21); the script's own echoes number steps
+  1-2 as [N/8] but steps 3-9 as [N/9] — internally inconsistent, and
+  init.el's references resolve to nothing under either scheme except a
+  nonexistent /8 range. Correct spec: normalize the script's counter to
+  /9 throughout and update init.el to "[8/9]"/"[4/9]" (AGENTS.md's
+  prose "step 4"/"step 8" wording stands).
+- **lapce is installed (00-base.sh:115), bound (SUPER+G), and
+  README-listed, yet has zero rice config** — no `config/lapce/`, no
+  palette wiring, no LSP settings. That makes it an undocumented
+  exception to the palette contract's "VLC stays unthemed — every
+  other in-session component follows the palette" clause: either
+  declare it unthemed-by-design alongside VLC, or give it the same
+  treatment as the other editors. (This also closes the pass-scope
+  note: the brief named lapce, but there is no `config/lapce/` to
+  audit.)
+
 ---
 
 ## Tree
