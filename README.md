@@ -1832,6 +1832,114 @@ What was wrong (and the correct spec):
   is provably broken on 0.56; both are first suspects the day a bind or
   resume path misbehaves.
 
+## Review pass 5 — Theme preset parity (4 presets)
+
+Scope: all 32 files under `config/hypr/themes/{mocha,gruvbox,tokyonight,
+osaka-jade}/`, `scripts/lint-themes.sh`, `config/hypr/switch-theme.sh`'s
+copy block, and the wallpaper-mode counterparts the presets shadow:
+`config/wal/templates/*`. The brief: re-run lint-themes.sh's own logic
+by hand across all four presets, then go past its file-presence and
+hex-membership level into the hex VALUES themselves — slot-for-slot
+equality across formats, which the lint structurally cannot see.
+Findings-only; only this section changed.
+
+Method, stated once: the lint's three checks were re-implemented
+independently (EXPECTED inventory per preset dir; case-insensitive hex
+membership seeded from each colors.sh; the `sed -n '/cp -f/,/WAL_DIR\/
+"$/p'` + `grep -oE` extraction of switch-theme.sh's cp list), then
+extended with the deep checks below, then the real script was executed
+under git-bash as a cross-check (exit 0; "SUMMARY: theme system is
+fully synchronized"). Template-render checks substitute pywal16's
+ACTUAL placeholder semantics, verified against `pywal/util.py` in
+eylles/pywal16 master: `{name}` expands to `#rrggbb`, `{name}.rgb` to
+the decimal triplet `r,g,b`, and `{name}.strip` to `rrggbb` without
+the '#'.
+
+Verified correct (no action):
+
+- All 8 formats in all 4 presets, exactly — no missing file, no orphan
+  file, and the cp block extracts to exactly those 8 basenames under
+  the lint's own sed/grep pipeline. `THEMES=(...)` in switch-theme.sh
+  matches the directory names, and `cycle`'s marker lookup maps every
+  stored name back to an index.
+- Slot-level equality, the property the lint does not test: in each
+  preset, `background`, `foreground`, `cursor`, and `color0..15` carry
+  byte-identical values across colors.sh, colors.el, colors-wal.vim,
+  colors-waybar.css, and colors-rofi.rasi (19 slots x 5 files x 4
+  presets, zero mismatches; the rasi legitimately omits cursor). Every
+  preset's colors-hyprland.conf follows the template's slot layout —
+  active border = rgb(color4) rgb(color1) 90deg, inactive = rgb(color0)
+  — in hex form. The slot files are therefore true pre-renders: one
+  source of truth honored positionally, not just as a set.
+- colors-zed.json is an EXACT render of the wal template per preset:
+  deep JSON comparison (all ~130 color-bearing keys, including every
+  8-digit alpha form .../00, /33, /4d, /66, /1f, /26 in the right key)
+  against config/wal/templates/colors-zed.json with that preset's own
+  slots substituted. Wallpaper mode and preset mode hand Zed
+  structurally identical themes; every alpha suffix is template-owned,
+  not preset-authored. All four are valid JSON (parsed in the check),
+  and config/hypr/themes/*/colors.el is additionally covered by
+  lint.yml's emacs byte-compile step.
+- colors-neomutt.muttrc is byte-identical across the 4 presets and
+  contains only literal ANSI slot names (`color0`..`color15` are
+  terminal-palette indices in muttrc syntax) — correct content for a
+  component whose palette the terminal emulator (ghostty's wal-fed
+  colors.conf) owns. config/neomutt/neomuttrc sources it from
+  ~/.cache/wal/ as designed.
+- osaka-jade is the only preset with mixed-case hex (`#FF5345`,
+  `#C1C497`); every consumer parses case-insensitively and the lint
+  lowercases before comparing, so this is cosmetic asymmetry, not
+  drift. Logged for symmetry.
+- The different "base colors" counts the lint reports (16 / 11 / 18 /
+  11) are by design: mocha and tokyonight alias color9..14 onto
+  color1..6 (canonical Catppuccin / Tokyo Night behavior where the
+  bright set reuses the hues), while gruvbox and osaka-jade ship
+  distinct brights. Not drift.
+
+What was wrong — all three items live on the wallpaper-mode side, in
+files that only render when `wal -i` runs (preset mode, which copies
+hand-verified files, is unaffected by the first two):
+
+- **`config/wal/templates/colors-hyprland.conf` renders invalid
+  Hyprland on the first `wal -i`.** It writes `rgb({color4.rgb})`, and
+  pywal16 substitutes `.rgb` as a bare DECIMAL triplet, so wallpaper
+  mode emits e.g. `col.active_border = rgb(137,180,250)
+  rgb(243,139,168) 90deg` — while Hyprland's gradient grammar takes
+  HEX inside rgb(), the exact form all four presets ship
+  (`rgb(89b4fa)`) and the template's own comment describes ("No `#` on
+  the hex — Hyprland's col.* syntax takes bare rgb()"). The intended
+  placeholder is `{colorN.strip}`. Because hyprland.conf sources the
+  rendered file last (later assignment wins, palette-contract item 8),
+  the bad render overrides whatever a preset copy established: after
+  any `wal -i`, borders get at best silently wrong colors and at worst
+  a config error, until a preset is re-applied. Correct spec: all three
+  `{colorN.rgb}` become `{colorN.strip}`.
+- **`config/wal/templates/colors-neomutt.muttrc` renders garbage
+  tokens.** Its `color{colorN}` pattern substitutes to `color#89b4fa`
+  — one invalid muttrc word — on 12 of 13 lines (`color indicator
+  color0 color#89b4fa`, ...). In wallpaper mode, neomuttrc's
+  `source ~/.cache/wal/colors-neomutt.muttrc` raises a parse error per
+  line and the index-color scheme never applies. The presets ship the
+  right content (literal `color4`-style names, braces removed; see the
+  byte-identical note above) — the template should contain exactly that
+  literal text, since wal copies plain text through unchanged and only
+  substitutes `{...}` tokens. Correct spec: drop the braces.
+- **lint-themes.sh's header promises a template check that exists
+  nowhere — and as described could not have caught either bug above.**
+  Lines 7-8 state that templates "are checked separately: every
+  {placeholder} must be a name wal exports". No such check runs in the
+  script (three sections: inventory / membership / cp list), in
+  lint.yml's two theme steps (file presence; this script), or in
+  60-update.sh's lint gate. And it is a name-level promise:
+  `{color4.rgb}` and `color{color4}` consist solely of valid wal export
+  names, so both broken templates pass it. What the header actually
+  needs is render-equivalence — substitute a fixed known palette and
+  require the rendered payload to equal the presets' payload (this
+  pass's method) — the only level at which wrong substitution
+  semantics surface. Correct spec when lint-themes.sh is next touched:
+  extend step 2 into a temp-dir render check, or trim the header to
+  describe what the script really does.
+
 ---
 
 ## Tree
