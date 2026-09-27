@@ -1617,6 +1617,221 @@ Minor, one line each:
   the snapshot script's slot. One-word fix when the script is next
   touched.
 
+## Review pass 4 — Hyprland core config vs. upstream docs
+
+Scope: `config/hypr/hyprland.conf`, `hypridle.conf`, `hyprpaper.conf`,
+`keybinds-extra.conf`, `gpu-env.sh`, `switch-theme.sh`,
+`start-mpvpaper.sh` — every directive, bind flag, window-rule effect,
+env var, and daemon keyword re-checked against the current upstream
+wikis (Hyprland, hypridle, hyprpaper) and elFarto/nvidia-vaapi-driver's
+README. This is a re-run of the audit that originally caught the
+`Mesa_*` casing, hypridle `lock_cmd`-in-listener, and
+hyprpaper-into-Hyprland `source=` bugs; per the brief, lines added
+since that pass (the keybind-variable apparatus, xdg-mime exec-onces,
+mpvpaper-by-default, the wlogout/calculator float rules, the wal border
+sourcing) got the same first-principles treatment. Findings are
+documented without fixes — no config file was touched.
+
+Documentation baseline, stated once: the wiki is now versioned and its
+default view tracks latest git; release snapshots exist per tag. As of
+this pass Arch ships `hyprland 0.56.2-3` (built 2026-09-04), and since
+Hyprland 0.55 hyprlang is deprecated in favour of a Lua config API:
+every current page (including the frozen v0.56.0 snapshot) leads with
+"Since Hyprland 0.55, hyprlang is deprecated in favor of lua" and
+documents only the `hl.*` forms. hyprlang still parses on the release
+channel (Arch's 0.56.2-3 links libhyprlang; the 0.55 changelog carries
+active `config/legacy` fixes), so nothing below is argued from the
+syntax flip alone: where a construct is absent from BOTH the 0.54 (last
+hyprlang-documented) and 0.56 pages, it is dead today, not merely
+deprecated.
+
+Verified correct (no action):
+
+- hypridle.conf, every key: `lock_cmd`, `before_sleep_cmd`,
+  `after_sleep_cmd` are the documented `general{}` keys and
+  `on-timeout = loginctl lock-session` is upstream's own example for
+  the lock listener; the file's comment about listeners not expanding
+  `$lock_cmd` matches upstream's description. Upstream has since added
+  only optional keys (unlock_cmd, on_lock_cmd/on_unlock_cmd,
+  inhibit_sleep, per-listener ignore_inhibit/condition_cmd) — nothing
+  required is missing.
+- Every env var NAME in hyprland.conf matches the current
+  Environment-variables page, including `QT_QPA_PLATFORM = wayland;xcb`
+  (the `;xcb` fallback is still the documented form). `qt6ct` is fine —
+  the page documents QT_QPA_PLATFORMTHEME with qt5ct as its example;
+  the variable is what matters.
+- gpu-env.sh in full: the multi-GPU-gated DRI_PRIME, the `__GL_*`
+  trio, per-vendor VDPAU_DRIVER/LIBVA_DRIVER_NAME, and the
+  MESA_SHADER_CACHE_DIR/MAX_SIZE pair fixed in the earlier pass are all
+  still real. Notably, the current Nvidia page's ENTIRE remaining env
+  recommendation is `LIBVA_DRIVER_NAME=nvidia` +
+  `__GLX_VENDOR_LIBRARY_NAME=nvidia` — exactly what gpu-env.sh sets on
+  that vendor.
+- The binds' dispatcher vocabulary matches the last hyprlang docs
+  (v0.54.0 Dispatchers, quoted): killactive, exit, fullscreen,
+  togglefloating, movefocus/movewindow with l/r/u/d, movetoworkspace,
+  workspace N and e±1, and resizeactive taking a "relative pixel delta
+  vec2 (e.g. 10 -10)" — so the rice's `-20 0` is a correct delta on the
+  channel the file speaks. pseudo/togglesplit are layout-owned
+  dispatchers the main page defers to the dwindle page. `dpms on|off`
+  is fired from hypridle, not a keybind, which is exactly the case the
+  page's "Do not use with a keybind directly" carves out.
+- Bind machinery on the legacy layer: binde/bindl/bindel/bindm
+  suffixes, mouse:272/273, XF86 keysyms, the `code:33` comment example,
+  `$variable` substitution in bind lines, and stacked modifiers all
+  still parse on 0.56 (libhyprlang linked, config/legacy maintained).
+- keybinds-extra.conf's allocation comments check out:
+  `$key_calendar` and `$key_lapce` share G under different modifiers
+  (SUPER+SHIFT vs SUPER, no collision), and the listed free
+  SUPER+SHIFT letters (B, P, V, W, Y, Z) match the live bind map.
+- The earlier fixes hold: the comment that hyprlang's `source` cannot
+  take shell redirection is accurate, hypridle/hyprpaper configs are
+  still correctly NOT sourced into hyprland.conf, and the wal template
+  `colors-hyprland.conf` later-assignment-wins border override is
+  legitimate for the hyprlang channel. switch-theme.sh and
+  start-mpvpaper.sh carry no Hyprland config directives (hyprctl CLI
+  only); nothing to flag against the docs.
+
+What was wrong (and the correct spec):
+
+- **hyprpaper.conf is dead against current hyprpaper — the daemon exits
+  before showing anything.** Upstream's ConfigManager registers only
+  `splash`/`splash_offset`/`splash_opacity`/`ipc` plus a special
+  category `wallpaper { monitor, path, fit_mode, timeout, order,
+  recursive }`, parses with `throwAllErrors = true`, and main.cpp is
+  `if (!g_config->init()) return 1;`. The rice's `preload = ...`
+  keyword is not registered at all, and `wallpaper = , path` (flat
+  assignment) is not either — the current hyprpaper docs (both the
+  latest-git and v0.56.0 pages) show ONLY the block form. So the
+  documented "comment mpvpaper, uncomment hyprpaper" toggle, part of
+  the monitor+wallpaper contract, currently launches a daemon that
+  aborts on its own config. Correct spec: drop the preload line and
+  use the block form with an empty monitor as the all-outputs fallback
+  (docs: "Monitor can be left empty for a fallback"):
+
+      wallpaper {
+          monitor =
+          path = ~/.config/hypr/wallpaper.jpg
+      }
+
+  `ipc = on` and `splash = false` still parse (hyprlang bools), though
+  splash's upstream default flipped to true.
+- **The decoration shadow keys are dead on BOTH doc generations.**
+  `drop_shadow`, `shadow_range`, `shadow_render_power`, and
+  `col.shadow` appear nowhere on the 0.54 or 0.56 Variables pages; the
+  documented form is a `shadow` subcategory under decoration with
+  `enabled`, `range`, `render_power`, `color`, plus new
+  `color_inactive`/`offset`/`scale`/`sharp`. Each line raises a config
+  error and the intended tuning (range 12, power 2, translucent black)
+  silently reverts to defaults (range 4, power 3). Correct spec
+  (hyprlang channel): `decoration { shadow { enabled = true; range =
+  12; render_power = 2; color = rgba(00000055); } }`.
+- **misc:focus_fallback never existed.** The Variables pages (either
+  era) contain only `general:no_focus_fallback` — which this config
+  already sets to true in general{}. The stray `focus_fallback = false`
+  in misc{} is a config error on every load and changes nothing even in
+  intent. Correct spec: delete the line.
+- **opengl:force_introspection in the commented NVIDIA block is dead.**
+  The opengl category documents only `nvidia_anti_flicker` — on the
+  0.54 page as well, so this predates the Lua migration. A user who
+  correctly follows the NVIDIA opt-in instructions would load a config
+  error. Correct spec: drop that line from the commented block.
+- **The commented NVIDIA block's wlroots-era and VA-API vars are
+  stale-to-invalid.** Per the current Nvidia page plus elFarto's
+  README: WLR_NO_HARDWARE_CURSORS and WLR_DRM_NO_ATOMIC appear nowhere
+  (Hyprland hasn't been wlroots-based since the aquamarine switch; the
+  modern equivalent is the `cursor:no_hardware_cursors` option);
+  GBM_BACKEND is gone too; the only two env vars the page still
+  recommends are the two gpu-env.sh already sets. `NVD_BACKEND,
+  wayland` is an invalid value — the page documents
+  `NVD_BACKEND=direct` and upstream allows only `direct` or `egl` (with
+  a warning that egl is broken on driver 525+). And `NVD_GPU_ADAPTER`
+  is not a variable anywhere: the README's full NVD_* set is
+  NVD_BACKEND, NVD_LOG, NVD_MAX_INSTANCES, and the two
+  NVD_MAX_DETACHED_BACKING_* knobs. Layer 2 of the GPU-agnostic contract would hand NVIDIA users four
+  dead-or-invalid exports. Correct spec: keep __GL_GSYNC_ALLOWED /
+  __GL_VRR_ALLOWED / LIBVA_DRIVER_NAME / __GLX_VENDOR_LIBRARY_NAME and
+  drop the rest (or point WLR_NO_HARDWARE_CURSORS at
+  cursor:no_hardware_cursors if the comment wants a compositor-level
+  knob).
+- **NVIDIA cmdline guidance drifted.** The block comment (mirrored in
+  the README's first-boot TODO) requires `nvidia_drm.modeset=1
+  nvidia_drm.fbdev=1`; the current page says "As of Nvidia driver
+  version 570.86.16, fbdev has now been enabled by default when modeset
+  is also enabled. Therefore we simply need to enable modeset."
+  Doc-side staleness, harmless but against the contract's layer 4.
+- **All 13 window-rule lines predate the window-rules rewrite.** The
+  12 `windowrule = <effect>, ^(regex)$` lines use bare-regex filters
+  (the v1 reading: implicit class match), and the lone
+  `windowrulev2 = nofocus, class:^(gamescope)$` mixes a keyword and a
+  rule name (`no_focus` in current docs) that no longer appear in the
+  docs either. Since 0.54 — still the hyprlang era — the documented
+  form is blocks: `windowrule { name = ...; match:class =
+  "^(steam_app_\\d+)$"; float = true; workspace = "5"; }`; on the 0.56
+  page it is `hl.window_rule({ match = { class = "..." }, float = true
+  })`. `windowrulev2` has zero hits on either. Whether the legacy layer
+  still parses the comma line on 0.56 is not documented either way; the
+  only forms upstream documents are the two above. Correct spec: block
+  form with `match:class = ...` (float/center/workspace exist as
+  documented effects; nofocus became no_focus).
+- **MOZ_ENABLE_WAYLAND fell off the Environment-variables page.**
+  Firefox has defaulted to Wayland for years; the line is inert cargo.
+  (HYPRCURSOR_THEME/SIZE were never on that page — they live on the
+  hyprcursor page — and remain correct.)
+- **Migration exposure, logged once for the whole file, with the
+  per-construct mapping this config will need when hyprlang is
+  removed** (nothing here is required today; all of it is required for
+  the config to survive the removal):
+  - `monitor=,preferred,auto,1` → `hl.monitor({ output = "", mode =
+    "preferred", position = "auto", scale = 1 })` (0.56 Monitors page
+    documents only this; empty output is the documented fallback rule).
+  - `env = X, y` → `hl.env("X", "y")`.
+  - `exec-once = cmd` → `hl.on("hyprland.start", function() ...
+    hl.exec_cmd("cmd") end)` per the current Autostart page.
+  - `$mod`/`$key_*`/`$cmd` substitution → Lua locals and concatenation
+    (`local mainMod = "SUPER"`, `hl.bind(mainMod .. " + K", ...)`); the
+    Binds page shows no `$`-substitution anywhere.
+  - binde/bindl/bindel/bindm → `hl.bind(keys, dsp, { repeating = true
+    } / { locked = true } / { repeating = true, locked = true } /
+    { mouse = true, ... })`.
+  - dispatchers → hl.dsp.*: killactive→hl.dsp.window.close(),
+    togglefloating→hl.dsp.window.float(), movefocus l→hl.dsp.focus({
+    direction = "left" }), movewindow→hl.dsp.window.move({ direction =
+    ... }), movetoworkspace→hl.dsp.window.move({ workspace = "5" }),
+    workspace N / e+1→hl.dsp.focus({ workspace = "e+1" }), dpms→
+    hl.dsp.dpms({ action = "on" }). Layout-owned pseudo/togglesplit
+    move to the dwindle page's functions.
+  - SEMANTIC TRAP already visible in the docs: the Lua resize
+    dispatcher's `relative` parameter defaults to false (exact size),
+    while hyprlang resizeactive took a delta — porting `-20 0` forward
+    without `relative = true` inverts the behavior.
+  - bezier/animation → `hl.curve("smoothOut", { type = "bezier",
+    points = {...} })` + `hl.animation({ leaf = "windows", ... })`;
+    the leaf names windows/windowsOut/border/fade/workspaces are still
+    valid.
+  - windowrule lines → `hl.window_rule({ match = { class = "..." },
+    float = true })` (rules now take typed values).
+  - `source = ~/.cache/wal/colors-hyprland.conf` and the
+    keybinds-extra.conf source line have no hyprlang-source equivalent
+    documented for the Lua config; the wal border template renders
+    hyprlang assignments, so AGENTS.md palette-contract item 8 (the
+    live border repaint path) needs a Lua-format renderer or a
+    dofile-style loader at migration time.
+  - hypridle.conf and hyprpaper.conf are unaffected by Hyprland's Lua
+    migration (separate daemons, their own hyprlang parsers) — the
+    hyprpaper breaking change recorded above is a daemon-side rewrite,
+    unrelated to the compositor's.
+- **Two risk items no document can settle, recorded honestly:** the
+  current docs show hyprctl dispatch only with hl.dsp.* call strings
+  (the rules page's hyprctl example), so `hyprctl dispatch dpms on` in
+  hypridle.conf and the `hyprctl reload` flows in hyprland.conf and
+  switch-theme.sh rest on legacy-string routing that is no longer
+  documented; and `input:touchpad:tap-to-click` flipped documented
+  spelling to `tap_to_click` between the 0.54 and 0.56 pages with no
+  note on whether the legacy layer normalizes the dashed form. Neither
+  is provably broken on 0.56; both are first suspects the day a bind or
+  resume path misbehaves.
+
 ---
 
 ## Tree
