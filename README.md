@@ -2371,6 +2371,133 @@ Findings (documented, unfixed per audit convention):
   stack, clamav, systemd/user timers, zed keymap.json, and wal's
   colors-neomutt.muttrc template have no entries at all.
 
+## Review pass 9 — systemd user units (config/systemd/user/*)
+
+Scope: all seven files under `config/systemd/user/` —
+`clamav-scan.{service,timer}`, `rice-update-check.{service,timer,sh}`,
+`vdirsyncer-google.{service,timer}` — plus everything that enables or
+references them: `00-base.sh` (the script the brief names),
+`30-dotfiles.sh` (the script that actually enables the user units),
+`40-gaming.sh` (gamemoded.service), README's update-checker enable
+line, and the ExecStart chain into `config/clamav/scan-targets.sh`.
+The brief: (1) every .service has a matching, sane .timer where one
+exists; (2) no unit runs as an unnecessarily broad user/group;
+(3) enabled units match what's shipped — no orphaned unit files, no
+referenced-but-missing ones. Method: full read of all seven files and
+both ExecStart targets, a repo-wide `systemctl` sweep across all
+scripts, git index mode checks (exec bits), and semantics checked
+against systemd.timer(5)/systemd.service(5). Findings-only; only this
+section changed.
+
+Verified correct (no action):
+
+- **Pairing is 3-for-3 in both directions.** Every .service has a
+  same-named .timer, and every .timer's implicit activation target
+  (no `Unit=` anywhere — the same-name default) exists on disk. All
+  three timers carry `[Install] WantedBy=timers.target`; none of the
+  services carry `[Install]`, which is correct for timer-activated
+  units. All three services are `Type=oneshot`, the right shape for
+  timer-triggered batch jobs.
+- **No unit runs broad.** All six units are systemd `--user` units
+  executing as the login user; there are no `User=`/`Group=`/
+  `SupplementaryGroups=` directives and no sudo/doas anywhere in the
+  units or their helpers, and `scan-targets.sh:8-11` actively refuses
+  EUID 0. The repo's only `sudo systemctl` calls (00-base.sh x6,
+  45-snapshots.sh x2, 20-sddm.sh x1) enable system-manager services
+  whose own packages define the privilege model (freshclam drops to
+  the clamav user via its packaged unit) — root there is required,
+  not excessive.
+- **Enablement matches shipping exactly: zero orphaned unit files,
+  zero referenced-but-missing units.** 00-base.sh itself enables no
+  user units — its six enables (bluetooth, ufw, clamav-freshclam,
+  cpupower, postgresql, mysqld) are all package-shipped units whose
+  packages the same script installs (cpupower: installed :270,
+  enabled :299, with a comment explaining the two-name config-file
+  detection). The repo-shipped user timers are enabled from
+  30-dotfiles.sh: `clamav-scan.timer` via an opt-in `[y/N]` prompt
+  (:118-123), `vdirsyncer-google.timer` only when
+  `~/.config/vdirsyncer/config` exists (:126-131 — impossible on a
+  fresh install since `config/vdirsyncer/` ships only
+  `config.example`, matching pass 7's credential design), and
+  `rice-update-check.timer` only via README's manual enable line
+  (AGENTS.md's "NOT auto-enabled" contract holds). gamemoded.service
+  (40-gaming.sh:20-22) is shipped by the gamemode package, not this
+  repo.
+- **Every ExecStart path resolves on the target.**
+  `%h/.config/clamav/scan-targets.sh` is mode 755 in the git index
+  and re-chmodded at 30-dotfiles.sh:110;
+  `%h/.config/systemd/user/rice-update-check.sh` is 644 in the index
+  but chmod +x'd at :116 (after the blanket `cp -a`, correct order);
+  `/usr/bin/vdirsyncer` is the official-repo path installed by
+  00-base.sh:124. rice-update-check.sh is also fully wired into CI
+  (bash -n + shellcheck) and the 60-update.sh lint gate.
+- **Cadences match their purposes.** Update check: `OnCalendar=daily`
+  + `RandomizedDelaySec=30min` + `Persistent=true` — the one timer
+  whose catch-up flag is live. Calendar: 15-minute session cadence,
+  the figure README's mail/calendar section documents. AV scan: ~20
+  min after session start, then roughly daily while the session
+  persists.
+- **Deploy/update plumbing is sound.** Unit files land via the
+  blanket `cp -a` and `daemon-reload` runs after it (30-dotfiles.sh
+  :117); 60-update.sh re-runs 30-dotfiles.sh (:317), so changed units
+  are reloaded on update; enable symlinks persist across redeploys;
+  `enable --now` is idempotent on re-run.
+
+Findings (documented, unfixed per audit convention):
+
+- **`Persistent=true` is dead config on two of the three timers.**
+  `clamav-scan.timer` and `vdirsyncer-google.timer` use only
+  monotonic triggers (`OnBootSec` + `OnUnitActiveSec`), and per
+  systemd.timer(5) `Persistent=` "only has an effect on timers
+  configured with OnCalendar=" — so the catch-up-after-downtime
+  behavior both lines imply never happens. Only
+  `rice-update-check.timer` (`OnCalendar=daily`) gets real catch-up.
+  For the AV scan the missed-run case is the one that matters: a
+  scan skipped because the machine was off simply doesn't run until
+  the next boot+20min. Correct spec when the timers are next
+  touched: either switch to `OnCalendar=daily` (making `Persistent=`
+  real and the "Daily" descriptions literally true) or drop the dead
+  lines.
+- **README overstates the ClamAV timer's enablement.** Lines
+  108-110: "`30-dotfiles.sh` enables a daily user timer" — the
+  script prompts `[y/N]` and defaults to leaving it disabled
+  (30-dotfiles.sh:118-123). Pass 3's audit text (line 1556) says
+  "offers to enable", which is the accurate version. Wording fix on
+  the next README touch.
+- **The three timer-driven jobs disagree about failing the unit, and
+  nothing documents it.** rice-update-check.sh is built to never
+  light up `systemctl --user --failed` (exits 0 on every failure —
+  its header explains why); scan-targets.sh propagates clamscan's
+  exit status, so a detection (1) *or* a scan error (2+) parks the
+  unit in the failed list until the next clean run;
+  vdirsyncer-google.service propagates vdirsyncer's exit, so an
+  offline laptop nets a failed unit that self-heals at the next
+  15-minute trigger. Each stance is defensible — loud on malware,
+  silent on a notifier — but the divergence is a design call that
+  exists nowhere in writing, and for calendar sync the transient-
+  offline failure is pure `--failed`/journal noise.
+- **The heaviest user job fires 20 minutes after boot with no
+  scheduling concessions.** `clamav-scan.service` runs a recursive
+  clamscan over Downloads, both Maildirs, and every discovered
+  mounted Windows `Users` dir with no `Nice=`/`IOSchedulingClass=`
+  in the unit and no nice/ionice in scan-targets.sh — i.e. at
+  roughly the moment the user logs in and starts working. Low
+  severity; add `Nice=19` and `IOSchedulingClass=idle` to the unit
+  when it's next touched.
+- Minor batch: (1) 30-dotfiles.sh runs `systemctl --user
+  daemon-reload` twice (:117 and again at :127 inside the vdirsyncer
+  branch) — the second is redundant with the first, harmless; (2) no
+  CI step parses the unit files themselves — lint.yml covers the
+  .sh helper (bash -n + shellcheck) but never runs anything like
+  `systemd-analyze verify` over the six units, so a typo'd directive
+  would deploy silently until a timer misfires (coverage-gap note,
+  same theme as pass 3); (3) AGENTS.md's layout entry (:166) and
+  components map (:285-286) name clamav-scan and rice-update-check
+  but not `vdirsyncer-google.*`, which arrived with the pass-7
+  mail/calendar stack — doc-completeness lag; (4) the README `##
+  Tree` diagram omitting `config/systemd/user/` is already logged in
+  pass 8's minor batch — not re-litigated.
+
 ---
 
 ## Tree
