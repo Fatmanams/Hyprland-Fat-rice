@@ -2220,6 +2220,157 @@ valid content); pass 3's note that the mail placeholder check hides
 under 50-verify.sh's "[4/9] clamav" banner; pass 2's chmod robustness
 gap.
 
+## Review pass 8 — Desktop shell configs (waybar/swaync/rofi/wlogout/eww)
+
+Scope: all ten files under `config/{waybar,swaync,rofi,wlogout,eww}/`,
+including the one compiled component (`rofi/keybind-menu.cpp`), plus the
+wiring that launches them — `hyprland.conf`'s exec-once lines, `$menu`,
+the vlc-open rofi line, and the wlogout bind — and `30-dotfiles.sh`'s
+keybind-menu rebuild step. The brief: (1) every component importing
+pywal cache files must point at `colors-waybar.css` (GTK `@define-color`
+syntax), never web-CSS `colors.css`, per the AGENTS.md palette contract
+item 3 — rofi excepted to `colors-rofi.rasi` via item 4; (2) confirm no
+component added since the policy was written reintroduces that bug.
+Method: full read of every in-scope file; per-path `git log --follow
+--diff-filter=A` to date each component against the contract's commits;
+a repo-wide `colors.css` sweep plus a full `.css/.scss/.rasi` inventory
+of `config/`; upstream verification against swaync v0.12.6 (Arch's
+current release: configSchema.json, baseWidget/dnd Vala sources) and
+v0.7.1's shipped default config for the GTK3-era key history, eww
+master source (eww_config.rs, validate.rs, main.rs), and wlogout's
+documented layout format. Findings-only; only this section changed.
+
+Verified correct (no action):
+
+- **All five components import the right pywal file — the colors.css
+  bug class stays dead.** waybar/style.css:7, swaync/style.css:8,
+  eww/eww.scss:7, and wlogout/style.css:9 each `@import
+  "../../.cache/wal/colors-waybar.css"` (the relative path resolves
+  ~/.config/<tool>/ to ~/.cache/wal/), and rofi/config.rasi:38
+  `@import`s `../../.cache/wal/colors-rofi.rasi` exactly as contract
+  item 4 requires. The repo-wide sweep finds `colors.css` in only two
+  places: AGENTS.md's prohibition itself and this README's "Notable
+  bug-fix audit" entry for the phase-2 fix. The five stylesheets are
+  also the only CSS in the tree — the full inventory under config/ adds
+  only the preset copies and the wal template that feeds rofi.
+- **Every `@name` reference resolves.** The four GTK stylesheets use
+  only @background/@foreground/@color1..8; the stock pywal16 template
+  and all four preset copies define @background/@foreground/@cursor/
+  @color0..15 (mocha checked slot-for-slot). config.rasi's
+  @color1/2/3/4/8 all exist in the custom rasi template's color0..15
+  set, which the presets mirror (pass 5's slot-level check).
+- **The policy's dates line up and nothing added since violates it.**
+  The contract was born in 67bb1f9 (2026-08-11) and made true by
+  db8ee0d (2026-08-15) — the same "Phase 2" commit that migrated the
+  consumers off colors.css and rewrote AGENTS.md item 3. Since then
+  these five directories gained exactly one file:
+  `rofi/keybind-menu.cpp` (2c717c8, 2026-09-15). It spawns bare
+  `rofi -dmenu -p keybinds -format i` — no `-theme`/`-config`, no
+  inline colors, its header codifying that "all styling lives in
+  config.rasi" — so the menu inherits the wal palette through
+  colors-rofi.rasi like every other rofi surface. (cc29eff's 2026-09-10
+  waybar/config touch is a comment-only wording change.) The other
+  post-policy themed additions under config/ — the wal templates,
+  preset files, ghostty-theme.sh, the ox renderer — are the contract's
+  own items 4-9 channels; no new CSS consumer appeared anywhere.
+- **Launch wiring passes no style overrides.** `exec-once = waybar`,
+  `exec-once = swaync`, `$menu = rofi -show drun -show-icons`, the
+  vlc-open `rofi -dmenu -p "play url"` line, `bind = $mod SHIFT,
+  $key_logout, exec, wlogout`, and `eww open bar_main || true` all run
+  each tool against its default config path — the file carrying the
+  palette import. No `-theme`/`--style`/`-c` flag exists anywhere.
+- keybind-menu's deploy contract is intact: the repo tracks only the
+  .cpp; 30-dotfiles.sh rebuilds it into ~/.config/rofi/ with
+  -DRICE_REPO, drops the cp -a'd source copy, and the `#ifndef
+  RICE_REPO` fallback keeps lint.yml's -fsyntax-only check building
+  without a -D.
+- swaync/config.json's remaining keys are all valid against the
+  current upstream schema (v0.12.6): the positionX/positionY/layer
+  enum values, cssPriority "user" (the documented way to also override
+  ~/.config/gtk-4.0/gtk.css), the 6/4/0 timeout triple, fit-to-screen,
+  keyboard-shortcuts, image-visibility, the five built-in widget names,
+  and every widget-config key it sets (title's text/clear-all-button/
+  button-text, dnd's text, volume's label/show-per-app). The `//`
+  header stays per AGENTS.md's lint section.
+- wlogout/layout matches the upstream format its own header documents
+  (one JSON object per button, no wrapper array), uses portable
+  loginctl/systemctl actions instead of hyprctl, and style.css styles
+  generic `button` selectors, so the documented label <-> `#label`
+  convention adds no coupling. eww.yuck's defvar+defpoll same-name
+  pattern is valid per eww master (validate.rs has no duplicate-name
+  check; generate_initial_state overlays defvar values on the
+  script-var seeds, so "loading..." is simply the pre-first-poll
+  initial), the Wayland window properties (stacking "fg", exclusive
+  false, focusable false) are schema-valid, and `eww open` starts the
+  daemon itself when the socket is absent (main.rs's WithServer arm),
+  so the single exec-once line is self-sufficient. waybar's
+  hyprland/workspaces and hyprland/window module names are current
+  (waybar removed the wlr/workspaces spelling in 0.10).
+
+Findings (documented, unfixed per audit convention):
+
+- **swaync/style.css's DND rules target a class swaync never applies.**
+  Control-center widgets get `widget` + `widget-<name>` CSS classes
+  (v0.12.6 baseWidget.vala), so the DND row is `.widget-dnd`, and its
+  switch carries the explicit back-compat class `control-center-dnd`
+  (dnd.vala: "Backwards compatible towards older CSS stylesheets");
+  upstream's own default stylesheet targets `.widget-dnd` and its
+  inner `switch`. The shipped `.dnd { ... }` and `.dnd > switch { ... }`
+  therefore match nothing: the row's @background/padding and the
+  switch's palette colors (@color1 unchecked, @color3 checked) are dead
+  CSS, and the toggle renders with swaync's defaults — the one control
+  in the notification center that escapes the pywal palette (the label
+  still tints via the global `* { color: @foreground }`). Correct spec
+  when style.css is next touched: `.dnd` -> `.widget-dnd`, and
+  `.dnd > switch` -> `.widget-dnd switch` (or `.control-center-dnd`
+  for the switch alone).
+- **swaync/config.json carries keys current swaync doesn't have.**
+  `transition-speed` is not a swaync key — the v0.7.1 default config
+  already used `transition-time`, and v0.12.6's schema still does — so
+  the setting is inert; the intended 200ms coincidentally equals the
+  default, hiding the miss until someone tunes it. The mpris block
+  sets `image-size` (deprecated upstream in favor of the
+  `--mpris-album-art-icon-size` CSS variable) and `image-radius` (a
+  real GTK3-era key — v0.7.1 shipped it — dropped in the GTK4 port and
+  absent from the v0.12.6 schema), and `notification-icon-size` is
+  likewise deprecated in favor of `--notification-icon-size`. swaync
+  reads only the keys it knows, so nothing visibly breaks — which is
+  exactly how the drift went unnoticed. Correct spec when the file is
+  next touched: switch to `transition-time`, drop the two dead mpris
+  keys (accept the defaults or move to the CSS variables), and migrate
+  the icon size.
+- **hyprland.conf's palette header describes a mechanism that doesn't
+  exist.** Line 13: "Tools (waybar, swaync, rofi) read source =
+  common.<theme>.rasi/.css templates that import pywal vars." No
+  `common.<theme>` file exists in the repo or in wal's output — the
+  sentence predates phase 2 (db8ee0d fixed the imports and rewrote the
+  AGENTS.md contract but missed this comment). What actually happens:
+  each tool's own stylesheet @imports ~/.cache/wal/colors-waybar.css
+  (waybar, swaync, wlogout, eww) or colors-rofi.rasi (rofi) per
+  contract items 3-4. Anyone debugging colors from this comment finds
+  nothing to read. Correct spec: rewrite it to describe the @import
+  flow and name all five tools.
+- **eww.yuck's cpu poll displays top's since-boot average.** `top
+  -bn1`'s first and only iteration reports CPU usage averaged since
+  boot — the classic top gotcha; instantaneous usage needs the second
+  iteration (run `top -bn2` and take the second `Cpu(s)` line) or two
+  /proc/stat reads. The demo bar therefore shows a near-static CPU%
+  that doesn't track live load, while its MEM sibling is fine (the
+  free-based $3/$2 math is correct for procps output). Minor — the
+  widget exists to exercise the eww binary — but it is the only
+  "live" number the bar shows.
+- Minor batch, cosmetic: (1) waybar/config lists `hyprland/window` in
+  both modules-left and modules-center, so the focused title renders
+  twice per bar (valid config, almost certainly unintended); (2)
+  rofi/config.rasi sets `lines: 10` in configuration{} but `lines: 12`
+  in the listview{} theme block — the theme value wins, leaving the 10
+  dead; (3) hyprland.conf:152's eww comment is garbled mid-sentence
+  ("separate from waybar —Dates a small bar at top-right"); (4) the
+  README `## Tree` diagram pre-dates several merges — rofi/ still
+  lists only config.rasi (keybind-menu.cpp missing), and the mail
+  stack, clamav, systemd/user timers, zed keymap.json, and wal's
+  colors-neomutt.muttrc template have no entries at all.
+
 ---
 
 ## Tree
