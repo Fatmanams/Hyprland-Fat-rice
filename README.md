@@ -2500,6 +2500,143 @@ Findings (documented, unfixed per audit convention):
 
 ---
 
+## Review pass 10 — CI coverage completeness (.github/workflows/lint.yml)
+
+Scope: lint.yml's seven steps mapped file-by-file against the full
+tracked tree — 23 shell files (22 `.sh` plus the extensionless POSIX-sh
+`config/vlc/vlc-open`), 12 JSON/JSONC files, 6 Elisp files, 1 Lua file,
+1 C++ translation unit (no headers exist). Method: `git ls-files`
+inventory plus a repo-wide `^#!` shebang sweep and a git-index exec-bit
+check (catches shell files hiding without the `.sh` suffix); every file
+assigned to the lint step that claims it; each candidate gap validated
+empirically with a byte-faithful replica of the CI pipeline (python
+`json` in place of `jq`, same `sed '/^\/\//d'` strip; `bash -n` for the
+preset colors.sh set); drift dated via `git log` on lint.yml and the
+files involved. `.zed/tasks.json` and `60-update.sh`'s lint gate were
+audited as parallel copies of those lists, not as CI themselves.
+Findings-only; only this section changed.
+
+Verified correct (no action):
+
+- **Shell is the fully-covered class: 23/23, twice over.** The bash -n
+  step and the shellcheck step share one list — the two glob arms
+  (`scripts/*.sh` = 11, `scripts/lib/*.sh` = 1) plus 11 explicitly
+  named config-side files. The shebang sweep found exactly the same 23,
+  no more: the classic gap class (an extensionless script the globs
+  can't see, or a new file nobody listed) is currently empty — even
+  `config/vlc/vlc-open` (`#!/bin/sh`) is named explicitly. Globs absorb
+  future `scripts/` additions automatically; the explicit config list
+  is where a new helper would be forgotten, and that's findings 1-6's
+  theme.
+- **Lua 1/1 and C++ 1/1.** `config/nvim/init.lua` gets a LuaJIT
+  bytecode parse (nvim's exact dialect — the right choice over generic
+  luacheck for init.lua), and `config/rofi/keybind-menu.cpp` compiles
+  under `-Wall -Wextra -Werror -fsyntax-only`. No other .lua/.cpp/.h
+  files exist to fall through.
+- **Elisp 5/6, and the covered 5 are drift-proof.** `init.el` plus
+  `config/hypr/themes/*/colors.el` byte-compiled via a glob — a *new
+  preset* can't escape coverage the way a new one-off file can. The
+  emacs step even deletes its own `.elc` artifacts afterwards.
+- **The five JSON files lint.yml names are the right five of the
+  original set, genuinely parsed.** swaync/config.json,
+  zed/settings.json, zed/keymap.json, postgres-language-server.jsonc
+  under `jq empty` (with the deliberate `//` headers stripped), and
+  wlogout/layout under `jq -s` because it's concatenated button
+  objects, not one document. The postgres commit (13a8857) is the
+  template for the fix pattern this pass checks for: it extended
+  lint.yml, `.zed/tasks.json`, and `60-update.sh`'s gate in the same
+  commit that added the file.
+- **Reverse-drift check is clean.** Every file lint.yml names still
+  exists; no stale entries, no renamed-away paths. The two theme-matrix
+  steps and lint-themes.sh are glob-driven over `themes/*/`, so the
+  preset side is structurally drift-immune.
+
+Findings (documented, unfixed per audit convention):
+
+- **`config/nvim/lazy-lock.json` has never been covered by anything.**
+  Added 2026-09-06 in 1dc12c4 (the lazy.nvim pinning commit — the
+  moment it became a tracked, hand-maintained file under the editor
+  plugin rule) and untouched since; lint.yml has been edited at least
+  six times in the meantime (through 359df11 on 2026-09-25) without
+  picking it up. It's pure single-object JSON and parses with a plain
+  `jq empty`, no stripping needed (verified). The exposure window is
+  precisely the edit the file exists for: a plugin bump is a hand-edit
+  of pinned SHAs after an upstream diff review, and a trailing-comma or
+  brace slip there deploys silently into every nvim cold start. This is
+  the same drift class the postgres commit had to patch for
+  postgres-language-server.jsonc — minus the fix.
+- **`.zed/tasks.json` is checked by nothing, including itself.** Pure
+  JSON, verified parseable, last meaningfully touched 2026-09-25
+  (359df11). Its "Repo: JSON validation" and "Repo: Full lint" tasks
+  embed verbatim copies of lint.yml's shell and JSON lists — so the
+  file is simultaneously an uncovered JSON file and a second home for
+  the master lists (see the structural finding). A syntax break here
+  fails silently as missing tasks in the authoring box's Zed.
+- **`config/waybar/config` is the covered swaync/wlogout `//`-JSONC
+  class and never made the list.** Verified wrinkle: waybar's header
+  comment block is indented, while lint.yml's strip is column-anchored
+  (`sed '/^\/\//d'`) — replicating the pipeline shows 4 comment lines
+  survive the anchor in waybar/config (0 in swaync and wlogout), so
+  the file can't be dropped into the existing loop as-is; the strip
+  must widen to `^[[:space:]]*//` (or the comments un-indent) in the
+  same change that adds the file. Parses clean once stripped.
+- **The four `config/hypr/themes/*/colors-zed.json` are grep-checked,
+  never parsed.** lint-themes.sh proves hex *membership* against the
+  preset's colors.sh via `grep -oE '#[0-9a-fA-F]{6}'`, which by
+  construction cannot see JSON structure: delete a comma between two
+  alpha-suffixed entries (`"#9399b233"` still matches the 6-hex regex)
+  and every current gate stays green while Zed rejects the generated
+  theme at load. All four parse clean under plain `jq empty` today
+  (verified).
+- **The four `config/hypr/themes/*/colors.sh` are real shell —
+  `source`'d at runtime — and never `bash -n`'d.** switch-theme.sh
+  copies the preset's colors.sh to `~/.cache/wal/colors.sh` and
+  ghostty-theme.sh:39 does `source "$WAL"` on that path, so a syntax
+  break lands mid-session at the next theme switch, not at a gate. All
+  four pass `bash -n` today (verified). Secondary effect:
+  lint-themes.sh seeds its known-color key set by grepping that same
+  file, so a broken quote doesn't fail loudly at seed time — it shrinks
+  the key set and turns the sibling files' correct hexes into spurious
+  FAILs, pointing the investigation at the wrong files.
+- **Both wal templates are valid-but-uncovered, and the checker's own
+  header claims the templates are checked.** Every placeholder in
+  `config/wal/templates/colors-zed.json` sits inside a quoted string,
+  so the template is pure JSON (verified parseable as-is); colors.el is
+  18 quoted `setq`s — valid Elisp the existing byte-compile step would
+  accept. Neither is in any step. Worse, lint-themes.sh's header
+  (:7-8) states templates "are checked separately: every {placeholder}
+  must be a name wal exports" — and the word "placeholder" occurs
+  nowhere else in the script; its three checks are preset inventory,
+  preset hex sync, and the switch-theme cp-list. All five wal templates
+  (the render inputs for rofi/emacs/zed/hyprland/neomutt palettes) are
+  validated by nothing, so a `{palce0}`-class typo ships silently and
+  wal renders it verbatim into the live config.
+- **Root cause is structural: the master lists exist in six places.**
+  The shell list is duplicated across lint.yml's bash -n step,
+  lint.yml's shellcheck step, `.zed/tasks.json` x2 ("Repo: Bash
+  syntax", "Repo: Full lint"), `60-update.sh:280-285`, and AGENTS.md's
+  lint block; the JSON list across lint.yml, tasks.json x2, and
+  60-update.sh:289. Drift between the copies has already started:
+  60-update.sh's gate comment (:267) still says "the three //-prefixed
+  JSONs" though 13a8857 grew that loop to four files, and AGENTS.md
+  step 2 still describes checking "swaync + wlogout" only (zed's two
+  JSONs and the postgres .jsonc exist in lint.yml but not in the doc).
+  Findings 1-6 are what six hand-synced copies predictably produce; a
+  single sourced manifest (or globs where the language allows) removes
+  the whole class.
+
+Minor batch: (1) systemd unit files get no `systemd-analyze verify` —
+already logged in pass 9's minor batch, not re-litigated here; (2)
+lint.yml itself has no YAML parse gate, but GitHub surfaces malformed
+workflow YAML as a workflow-file error rather than a red job, so the
+failure mode is self-announcing — low value; (3) the remaining types
+(.rasi, .css, .scss, .yuck, .toml, .conf, .desktop, the muttrc
+examples) have no syntax gate by design — pass 8's swaync selector rot
+suggests the CSS family is the weakest uncovered class if a future
+pass extends the matrix.
+
+---
+
 ## Tree
 
 ```
