@@ -2637,6 +2637,258 @@ pass extends the matrix.
 
 ---
 
+## Review pass 11 — Docs accuracy (README.md / AGENTS.md / LICENSE)
+
+Scope: the eleventh and final pass — the docs themselves. The two
+doc-owned tables the brief names (README's "What's in this rice", 49
+rows, and AGENTS.md's "Components map", 23 rows) plus every behavioral
+claim in README.md's prose, AGENTS.md's contracts and layout tree, and
+LICENSE, each re-checked against the scripts/configs they describe.
+Second half of the brief: a repo-wide sweep for stale TODO /
+`@@ TODO @@` / placeholder markers that code has already resolved but
+docs never dropped. Method: full read of README.md (2,715 lines) and
+AGENTS.md (536), the tracked inventory from `git ls-files` (106
+files), then line-level checks of each doc claim against
+`scripts/00-base.sh`, `10-aur.sh` `PACKAGES=()`, `30-dotfiles.sh`,
+`45-snapshots.sh`, `50-verify.sh`, `hyprland.conf`,
+`keybinds-extra.conf`, `zed-handler.desktop`, `zed/settings.json` +
+`keymap.json`, `.zed/tasks.json`, `MangoHud.conf`, `ghostty/config`,
+`init.el`/`init.lua`, `vlc-open`, `switch-theme.sh`, and
+`.github/workflows/lint.yml`. Code-side bugs referenced below stay
+owned by their original passes — this pass judges the DOCS against
+current reality. Findings-only; only this section changed.
+
+**TODO / placeholder sweep — clean where it should be.** Exactly two
+`@@ TODO @@` markers exist in the tree (`hyprland.conf:24` monitors,
+`hyprpaper.conf:8` wallpaper) and both are the live, documented
+first-boot items (README TODOs #1–#3) — not stale. The remaining
+placeholders are intentional and documented as such: neomutt's
+`YOUR_GPG_KEY_ID_HERE` (pass 7), the mail-stack `.example` identities,
+and `postgres-language-server.jsonc`'s placeholder creds (`:4` says so
+out loud). `30-dotfiles.sh:149`'s runtime "wallpaper is a TODO" echo
+matches the docs. No resolved-but-unremoved TODO marker found
+anywhere.
+
+Verified correct (no action):
+
+- **LICENSE ↔ README**: `## License`'s "MIT — © 2026 Ziad Ibrahim"
+  matches LICENSE's copyright line and title exactly.
+- **Component table ↔ scripts, row by row.** All 49 rows resolve: every
+  "pacman (extra)" package sits in `00-base.sh`'s transactions (steam
+  at :129, tmux/lazygit :133, yazi/thunar set :135, vlc/obs/audacity
+  :136, yt-dlp/streamlink :137, bitwarden :138, bluez/blueman :139,
+  ufw :140, clamav/libnotify/apparmor/firejail :141, LSP seven :172–179,
+  DBs :143), every AUR row matches one of `10-aur.sh`'s ten
+  `PACKAGES=(...)` entries (:219–230) 1:1 with AGENTS.md's source-build
+  table, and every behavioral note holds — bluetooth.service enable
+  (:185), ufw baseline (:191–197), freshclam (:203), blueman-applet
+  exec-once (hyprland.conf:80), AppArmor's inert-until-cmdline status
+  (:206–210), the mpvpaper-default/hyprpaper-fallback split
+  (hyprland.conf:83–86), and bibata/cursor + fish-under-ghostty
+  (hyprland.conf:218–221, ghostty/config:46).
+- **Keybind claims resolve end-to-end.** SUPER+E/R/Z/Y/G/C editor
+  launches, SUPER+SHIFT+A/D/I AI CLIs (`$claude_command`/
+  `$deepseek_command`/`$kilo_command` exist at keybinds-extra.conf:47–49),
+  SUPER+SHIFT+O/U/M, SUPER+V bitwarden, SUPER+SHIFT+T theme cycle (order
+  matches `THEMES=(mocha gruvbox tokyonight osaka-jade)`,
+  switch-theme.sh:30), SUPER+SHIFT+/ keybind menu, SUPER+SHIFT+E yazi /
+  SUPER+SHIFT+F thunar per the component table — all match
+  hyprland.conf:269–312 + keybinds-extra.conf:28–64. The free-letter
+  comment (keybinds-extra.conf:26) still matches the live bind map.
+- **Theme formats**: each preset dir carries exactly the eight formats
+  README :236 lists, `colors-neomutt.muttrc` included; lint.yml's
+  presence matrix names the same eight (:59, :66).
+- **Editor claims**: Zed keymap's Ctrl+Alt+B/R/T/F tasks binds match
+  README :750–753; settings.json carries every feature the editor
+  section lists (font :15, autosave :18, format-on-save :19, signature
+  help :22–23, code_lens :24, inlay hints :26, trailing-whitespace :32);
+  Emacs's `C-c w/q/e/b/n` set (init.el:119–123) matches README :805; the
+  F2 modal/plain contract exists in all three editors (init.lua:324,
+  init.el, keymap.json:8); nvim's FATS/SUPER + Ctrl-O/Ctrl-S/Ctrl-Z
+  claims hold (init.lua:287–331).
+- **Script-behavior claims**: 50-verify.sh runs exactly the nine [n/9]
+  checks AGENTS.md's layout tree states; snapper retention 5 hourly +
+  7 daily (45-snapshots.sh:80–84) matches README :573–574; MangoHud's
+  Right_Shift HUD toggle (MangoHud.conf:45) matches README :903–904;
+  vlc-open's yt-dlp/streamlink split + `streamlink --player vlc`
+  (vlc-open:25, 30) and its youtube.lua-distrust header match README
+  :87–88; the update-checker's enable line (README :662) names the real
+  unit; the mail section's copy-if-absent / chmod-600 / conditional
+  vdirsyncer enable all match 30-dotfiles.sh:118–131; the AI-tools
+  section matches the exported vars and binds.
+- **$. mirroring** — AGENTS.md's components-map rows all point at files
+  that exist and own the named concern (re-spot-checked, not just pass
+  1's word for it).
+
+What was wrong (and the correct spec) — new this pass:
+
+- **Step 0's clone instructions point at a repo that does not exist.**
+  README :385–386 says `git clone
+  https://github.com/Fatmanams/Hyprland-Fat-rice-.git` and
+  `cd Hyprland-Fat-rice-` — trailing dash. The actual remote (verified
+  via `git remote get-url origin` and `gh repo view`) is
+  `https://github.com/Fatmanams/Hyprland-Fat-rice` — no trailing dash.
+  The very first copy-paste a fresh user runs 404s. Highest-severity
+  finding in the pass. Correct spec: drop the trailing `-` in both
+  lines.
+- **README's two keybind lists disagree about SUPER+SHIFT+E, and the
+  code sides with the component table.** The bindings list (:834) says
+  "SUPER + SHIFT + E — Open Thunar (was SUPER+E before Zed won it)".
+  The code binds `$mod SHIFT, E` to `$files` = yazi
+  (hyprland.conf:279, keybinds-extra.conf:40) and Thunar to
+  `$mod SHIFT, F` (hyprland.conf:280, `$gui_files` at :41) — which is
+  exactly what the component table already says (:89–90). The :834 row
+  is stale from the pre-yazi layout. Correct spec: SUPER+SHIFT+E opens
+  the TUI file manager (yazi); Thunar is SUPER+SHIFT+F.
+- **"You can run each script at most once" (:456) contradicts the same
+  README's update pipeline.** :632–633 documents 60-update.sh phase 6
+  as "re-runs `00-base.sh` → `45-snapshots.sh` in order" on every
+  update, and pass 2 verified re-run idempotency is a designed
+  property of the stateful steps. The sentence as written tells a
+  reader never to re-run anything, which would make updates
+  impossible. Correct spec: drop it or reword to "safe to re-run; the
+  update pipeline does exactly that" (it is the install steps' one-
+  shot *necessity*, not a cap, that was presumably meant).
+- **The `## Tree` diagram has drifted further than pass 8 recorded.**
+  Pass 8's minor batch logged the missing `rofi/keybind-menu.cpp`,
+  mail-stack dirs, `clamav/`, `systemd/user/`, `zed/keymap.json`, and
+  `wal/templates/colors-neomutt.muttrc` — all still absent. New since
+  that note and unlogged anywhere: the `scripts/` block ends at
+  `50-verify.sh` (:2657) — `60-update.sh`, `61-rollback.sh`,
+  `install-zed.sh`, `lint-themes.sh`, and `scripts/lib/rice-version.sh`
+  (5 of the 12 script files, i.e. the entire update/rollback pipeline
+  the README's own Updates section describes) have no entries; and the
+  top level omits `.zed/tasks.json` and `postgres-language-server.jsonc`
+  (both referenced elsewhere in the README). Correct spec when the
+  Tree is next touched: regenerate it from `git ls-files` instead of
+  by hand.
+- **AGENTS.md's Repository layout omits four tracked paths.** LICENSE,
+  `postgres-language-server.jsonc`, and
+  `config/wal/templates/colors-neomutt.muttrc` were logged in pass 1's
+  governance section and remain absent; pass 11 adds a fourth not
+  previously named: `.github/workflows/lint.yml` — despite the README
+  Tree carrying it (:2649) and the lint/verify section being ABOUT it.
+- **AGENTS.md's lint/verify section documents 5 checks; lint.yml runs
+  8 named steps.** Missing from the doc: shellcheck (error severity),
+  the emacs byte-compile glob, the preset format-presence matrix, and
+  the luajit parse; and step 2's jq set still reads "swaync + wlogout"
+  (:243–245) while CI parses four `//`-prefixed JSONs (swaync, zed
+  settings, zed keymap, postgres-language-server.jsonc) plus wlogout
+  under `-s`. This is pass 10's structural finding (the master lists
+  exist in six places) observed from the docs side.
+- **The README promises a cpupower governor prompt the script never
+  shows.** Install-step-1 comment (:414–416): "Two interactive prompts
+  near the end: the CPU `performance` governor ... and the OPTIONAL
+  emacs-wayland install. Both default to no." Only the Emacs prompt
+  exists (00-base.sh:323, correctly `[y/N]`). The governor block
+  (00-base.sh:243–301) contains no `read` at all — it installs
+  cpupower (:270), writes `governor='performance'` (:293–297), and
+  enables the service (:299) unconditionally. Pass 3 sighted this and
+  deferred it to pass 2's script-logic window; pass 2 didn't log it,
+  so it lands here, its rightful docs window. Correct spec: either the
+  prompt the README promises or a README rewrite saying the governor
+  is applied unconditionally (with the laptop caveat kept).
+- **README overstates 50-verify.sh's coverage.** :447 says it reports
+  "first-boot TODOs cleared" — no such check exists; [1/9] verifies
+  monitor/wallpaper *line presence* only, and nothing probes
+  wallpaper.jpg, the NVIDIA cmdline, or AppArmor's `lsm=` (pass 3,
+  still unfixed — re-confirmed against the nine banners).
+- **README overstates the ClamAV timer's enablement and cadence.**
+  :108–110: "`30-dotfiles.sh` enables a daily user timer" — the script
+  prompts `[y/N]` and defaults to leaving it disabled
+  (30-dotfiles.sh:118–122; pass 3's "offers to enable" is the accurate
+  wording), and "daily" is doubly wrong: the timer is
+  OnBootSec+OnUnitActiveSec with a dead `Persistent=` (pass 9).
+- **GPU-vendor detection overclaims the prompt.** :279–281 says
+  00-base.sh "installs the right driver stack with a single
+  confirmation prompt". Only the NVIDIA branch prompts
+  (00-base.sh:220, `[Y/n]`); the Intel/AMD stack installs
+  unconditionally (:233–241) with no prompt — on the *majority* vendor
+  path there is nothing to confirm.
+- **zed-handler "covers JavaScript" — declared, never registered.**
+  README :679 says the handler covers "C headers, JavaScript, TOML,
+  YAML, markdown, shell, plaintext". `zed-handler.desktop:9` does
+  declare the JS/TS MimeTypes, but the session actually defaults only
+  the types in hyprland.conf's `xdg-mime default` exec-once
+  (:137–148), which names no JavaScript/TypeScript entry. Declared
+  candidate ≠ default handler; JS/TS files get no rice-registered
+  opener. Correct spec: extend the exec-once list to the JS/TS types
+  the .desktop already declares, or drop JavaScript from the README
+  sentence.
+- **The F2 bindings-table row predates the Zed contract.** :839 reads
+  "F2 (in nvim/emacs)" — Zed got the same toggle in
+  config/zed/keymap.json:8, which this README's own editor section
+  documents at :691–696. One-word fix, "nvim/emacs/zed".
+- **`## Contents` is missing entries and lags the audit history.**
+  "## Updates and fail-safe rollback" (:602) — a full H2 — has no
+  Contents line, and the audit subsection bullets (:35–37) stop at
+  pass 2, so passes 3–10 (and now 11) are reachable only by scrolling.
+  Convention note: the lag grew one section per pass because no pass
+  touches the TOC; this finding inherits that.
+
+Still accurate, still unfixed — doc-side drift earlier passes logged,
+re-confirmed unfixed at e6511a6, cross-referenced not re-litigated:
+
+- Stale package names in prose/comments: `rofi-wayland` (README :58,
+  :148; AGENTS.md :71; 10-aur.sh :75), `swww` (README :59, :150),
+  `nvidia`/`nvidia-dkms` gotcha wording (README :327–336;
+  00-base.sh :218–229), `NetworkManager` mis-casing (00-base.sh :118),
+  `mesa-vdpau` + `libva-mesa-driver` (00-base.sh :239), the
+  `python-pywal` framing (AGENTS.md :73; 10-aur.sh :77) — pass 1, both
+  halves. The component table stays consistent with the code; the code
+  is what targets the dead names.
+- `sudoedit -e nano` (README :854; endorsed by AGENTS.md :489;
+  hyprland.conf :55's `sudoedit -f -e nano` variant) — invalid
+  invocation per sudo(8), pass 1 governance.
+- README's source-build inventory is 9 rows vs 10 `PACKAGES=()`
+  entries — `chkrootkit` still missing (:133–143), breaking the rule-5
+  contract AGENTS.md :509–510 states — pass 1 governance.
+- The orphaned "`gamemode`, `gamescope`, ..." bullet stranded inside
+  "### Keybind customization" (:213) — pass 1 governance.
+- README first-boot TODO #3 (:500–503) documents hyprpaper's flat
+  `wallpaper = <monitor>, ...` form, dead against current hyprpaper
+  upstream — pass 4; the doc half of that finding lives in this pass's
+  window (the `@@ TODO @@` marker itself stays legitimate — it's the
+  per-monitor syntax next to it that broke).
+- hyprland.conf :13's palette header describes the nonexistent
+  `common.<theme>` mechanism — pass 8. Read this file's header with
+  pass 8's correction, not as-is.
+- README's LSP row (:79, "used by Zed + Emacs/eglot") and the editor
+  section's "system language servers ... remain the source of truth"
+  (:702–703) overstate Zed's side — pass 6 showed Zed falls back to
+  downloading basedpyright/ruff/vtsls rather than using the PATH
+  pyright/typescript-language-server.
+- The mail section names only the legacy `crypt_autosign` spelling
+  (:171–173) and its placeholder-TODO sentence covers signing but not
+  opportunistic encryption — pass 7.
+- `init.el`'s `[8/8]`/`[4/8]` step references (:9, :21) point at a
+  numbering the script never prints; 00-base.sh's own banners mix /8
+  and /9 (:39, :57 vs :100–333) — passes 1/2/6.
+- AGENTS.md's systemd/user layout entry (:166) and components-map rows
+  (:285–286) name clamav-scan and rice-update-check but not
+  `vdirsyncer-google.*` — pass 9 minor batch.
+- NVIDIA cmdline docs (README :313–317; hyprland.conf :241–242)
+  require `nvidia_drm.fbdev=1`, default-on since driver 570.86.16 —
+  pass 4.
+
+Minor batch, one line each:
+
+- hyprland.conf :4's header says "review the optional TODOs ...
+  marked `@@ TODO @@`" (plural); the file carries exactly one marker
+  (:24) — the second lives in hyprpaper.conf :8, a different file.
+- README :748–750 enumerates five .zed/tasks.json task groups; the
+  file ships seven — "Repo: C++ syntax" and "Repo: Theme sync
+  (lint-themes)" go unmentioned.
+- hyprland.conf :301's `# Logout menu (wlogout).` header sits directly
+  above the SUPER+SHIFT+N mail bind; the wlogout bind is nine lines
+  lower (:309) — comment placement, not behavior.
+- AGENTS.md's authoring-box note (:7–8) says paths "may show
+  `D:\linux rice`"; the current checkout is `D:\hhhy\Hyprland-Fat-rice`
+  — the hedge word "may" keeps it technically true; noted only because
+  this pass exists to catch exactly this class.
+
+---
+
 ## Tree
 
 ```
