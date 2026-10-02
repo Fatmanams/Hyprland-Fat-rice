@@ -382,8 +382,8 @@ repo — first commands on the installed system:
 ```bash
 sudo pacman -Syu
 sudo pacman -S git
-git clone https://github.com/Fatmanams/Hyprland-Fat-rice-.git
-cd Hyprland-Fat-rice-
+git clone https://github.com/Fatmanams/Hyprland-Fat-rice.git
+cd Hyprland-Fat-rice
 ```
 
 You are now at step 1 of "Installation steps" below.
@@ -2730,7 +2730,7 @@ What was wrong (and the correct spec) — new this pass:
   `https://github.com/Fatmanams/Hyprland-Fat-rice` — no trailing dash.
   The very first copy-paste a fresh user runs 404s. Highest-severity
   finding in the pass. Correct spec: drop the trailing `-` in both
-  lines.
+  lines. Resolved in fix/step0-clone-url.
 - **README's two keybind lists disagree about SUPER+SHIFT+E, and the
   code sides with the component table.** The bindings list (:834) says
   "SUPER + SHIFT + E — Open Thunar (was SUPER+E before Zed won it)".
