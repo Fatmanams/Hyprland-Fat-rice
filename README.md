@@ -717,7 +717,11 @@ localhost databases for dev/learning:
   work with zero args). Loopback TCP is deliberately scoped: the step rewrites
   initdb's stock `host all all ... trust` rows to `sameuser` for your login
   role only and drops the replication rows — the `postgres` superuser is
-  **not** reachable over TCP at all. Residual, documented: any local process
+  **not** reachable over TCP at all. That scoping is enforced fail-closed:
+  before the service is enabled, the step re-reads `pg_hba.conf` on every
+  run — first init or re-run against an existing cluster — and refuses to
+  start the service if a wide-open `host all all` row survives or the
+  file can't be read. Residual, documented: any local process
   can still claim *your* login role on loopback and reach *your* scratch DB;
   fine for a single-user dev box, revisit if that stops being true.
 - **MariaDB (MySQL)** — Arch's drop-in MySQL (`mariadb` provides `mysql`):

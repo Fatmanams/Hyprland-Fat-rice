@@ -347,6 +347,7 @@ if [[ "$yn" =~ ^[Nn]$ ]]; then
     echo "    Skipped PostgreSQL setup. (postgresql still installed; you can"
     echo "    run these commands by hand later — see README 'Code editor setup'.)"
 else
+    HBA=/var/lib/postgres/data/pg_hba.conf
     if [[ ! -s /var/lib/postgres/data/PG_VERSION ]]; then
         # --auth-local=peer: CLI connections over the unix socket come down to
         # the linux username. --auth-host=trust: loopback TCP stays zero-password
@@ -362,23 +363,36 @@ else
         # single-user dev box: a local process running as anyone can still
         # claim YOUR role and reach YOUR scratch database — don't share the
         # box (or containerize it) without switching host auth to scram.
-        HBA=/var/lib/postgres/data/pg_hba.conf
         sudo sed -i -E \
             -e "s/^host([[:space:]]+)all([[:space:]]+)all([[:space:]]+127\.0\.0\.1\/32[[:space:]]+)trust/host\1sameuser\2$USER\3trust/" \
             -e "s/^host([[:space:]]+)all([[:space:]]+)all([[:space:]]+::1\/128[[:space:]]+)trust/host\1sameuser\2$USER\3trust/" \
             -e "/^host[[:space:]]+replication[[:space:]]+all[[:space:]]+127\.0\.0\.1\/32[[:space:]]+trust/d" \
             -e "/^host[[:space:]]+replication[[:space:]]+all[[:space:]]+::1\/128[[:space:]]+trust/d" \
             "$HBA"
-        # Fail closed: if initdb's stock file ever changes shape and nothing
-        # matched, the wide-open rows are still in there — catch that now.
-        if grep -Eq '^host[[:space:]]+all[[:space:]]+all[[:space:]]+' <(sudo cat "$HBA"); then
+    else
+        echo "    cluster already initialized, leaving it (and its pg_hba.conf) alone."
+    fi
+    # Fail closed before the service ever starts, on EVERY path — a fresh
+    # rewrite, or a cluster left initialized by an aborted first run
+    # (re-runs used to reach `enable --now` with pg_hba.conf never looked
+    # at). Refuse if a wide-open `host all all` row is still in there, and
+    # read via `sudo grep` (not `<(sudo cat)`) so the read's own failure is
+    # fatal too: grep exit 2 (missing/unreadable) aborts, and only exit 1,
+    # a clean no-match, lets the service start.
+    hba_rc=0
+    sudo grep -Eq '^host[[:space:]]+all[[:space:]]+all[[:space:]]+' "$HBA" || hba_rc=$?
+    case $hba_rc in
+        0)
             echo "    !! pg_hba.conf: expected stock trust rows not found;" >&2
             echo "       refusing to continue with host auth unscoped." >&2
             exit 1
-        fi
-    else
-        echo "    cluster already intialized, leaving it (and its pg_hba.conf) alone."
-    fi
+            ;;
+        2)
+            echo "    !! pg_hba.conf: unreadable or missing;" >&2
+            echo "       refusing to continue with host auth unvalidated." >&2
+            exit 1
+            ;;
+    esac
     sudo systemctl enable --now postgresql.service
     # createuser/createdb are idempotent at the "works" level but not quiet
     # about it, so gate their churn:
