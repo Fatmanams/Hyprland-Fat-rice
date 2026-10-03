@@ -328,7 +328,7 @@ done
 # run (the pre-update ~/.config); a failed run before 30 keeps the previous
 # deployed.env's path, which is still a sane state to return to.
 upd_backup=$(rice_env_get "$ENV_FILE" RICE_CONFIG_BACKUP)
-[[ -n $upd_backup ]] || upd_backup=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1)
+[[ -n $upd_backup ]] || upd_backup=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1 || true)
 rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "${upd_backup:-}"
 
 # ---- 7/8 gate --------------------------------------------------------------------

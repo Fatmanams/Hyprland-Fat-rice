@@ -120,7 +120,7 @@ sudo pacman -S --needed --noconfirm \
     noto-fonts noto-fonts-emoji noto-fonts-cjk ttf-liberation ttf-dejavu \
     ttf-jetbrains-mono-nerd ttf-nerd-fonts-symbols \
     fontconfig \
-    jq curl wget git base-devel \
+    jq curl wget git base-devel rsync \
     neomutt isync msmtp gnupg khal vdirsyncer \
     gcc clang make cmake meson ninja pkgconf \
     imagemagick ffmpeg \
