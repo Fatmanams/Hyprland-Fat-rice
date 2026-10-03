@@ -153,13 +153,22 @@ echo "==> Generating first pywal palette from wallpaper (if set)"
 WALLPAPER="$HOME/.config/hypr/wallpaper.jpg"
 chmod +x "$HOME/.config/hypr/switch-theme.sh"
 # wal (python-pywal16, built by 10-aur.sh) may legitimately be absent
-# — the user can decline the build at 10-aur's review. An unguarded
-# `wal -i` would then strand the deploy after the config copy but
-# before rice_env_write_deployed, and re-fail inside 60-update's
-# automatic rollback.
+# — the user can decline the build at 10-aur's review — and a present
+# wal can still fail (corrupt image, broken user template). Neither
+# may strand the deploy after the config copy but before
+# rice_env_write_deployed, or re-fail inside 60-update's automatic
+# rollback: capture wal's exit status instead of letting set -e kill
+# the script, and degrade to the preset seed below.
+palette_ok=0
 if [[ -f "$WALLPAPER" ]] && command -v wal >/dev/null 2>&1; then
-    wal -i "$WALLPAPER" -q
-    echo "    wal ran. colors at ~/.cache/wal/colors.sh"
+    wal_rc=0
+    wal -i "$WALLPAPER" -q || wal_rc=$?
+    if [[ $wal_rc -eq 0 ]]; then
+        echo "    wal ran. colors at ~/.cache/wal/colors.sh"
+        palette_ok=1
+    else
+        echo "    wal -i failed (rc=$wal_rc) — seeding mocha preset instead; fix the wallpaper/pywal install, then rerun wal -i"
+    fi
 else
     if [[ -f "$WALLPAPER" ]]; then
         echo "    wal not installed — skipping wallpaper palette, seeding mocha preset (install python-pywal16 via 10-aur.sh, then run wal -i for wallpaper mode)"
@@ -167,10 +176,14 @@ else
         echo "    no wallpaper at $WALLPAPER — hypr/wallpaper.jpg is a TODO."
         echo "    drop a jpg there and run: wal -i ~/.config/hypr/wallpaper.jpg"
     fi
-    # No wallpaper (or no wal binary): seed the default preset so
-    # waybar/rofi/nvim have colors on first boot. switch-theme.sh needs
-    # no wal binary — it only copies preset files into ~/.cache/wal/;
-    # running `wal -i` later switches back to wallpaper mode.
+fi
+# Palette missing or unusable (no wallpaper, no wal binary, or wal
+# failed mid-write): seed the default preset so waybar/rofi/nvim have
+# colors on first boot and any partial ~/.cache/wal files a failed wal
+# may have left get overwritten. switch-theme.sh needs no wal binary —
+# it only copies preset files into ~/.cache/wal/; running `wal -i`
+# later switches back to wallpaper mode.
+if [[ $palette_ok -eq 0 ]]; then
     "$HOME/.config/hypr/switch-theme.sh" mocha
 fi
 "$HOME/.config/ox/ox-theme.sh"
