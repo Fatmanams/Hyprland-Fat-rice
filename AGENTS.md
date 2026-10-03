@@ -423,9 +423,11 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
   replace it with one explicit `monitor=` line per output for custom
   positions, modes, scale, or rotation. Do not hardcode a
   machine-specific layout in the repository.
-- `config/hypr/hyprpaper.conf` ships with `wallpaper = , ...`, applying one
-  image to every output. Users may replace it with per-monitor wallpaper
-  lines; do not hardcode machine-specific output names.
+- `config/hypr/hyprpaper.conf` ships with one `wallpaper { }` block whose
+  `monitor = *` wildcard applies one image to every output (current
+  hyprpaper has no `preload=` or flat `wallpaper =` keywords). Users may
+  replace it with per-monitor blocks; do not hardcode machine-specific
+  output names.
 - The wallpaper path `~/.config/hypr/wallpaper.jpg` is a TODO the user
   fills in after `30-dotfiles.sh` runs. **Don't** vendor a wallpaper
   binary into this repo.
