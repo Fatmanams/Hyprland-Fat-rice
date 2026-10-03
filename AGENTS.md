@@ -335,6 +335,10 @@ Color theming is **pywal16-driven, single source of truth**. The flow:
    `ghostty +reload-config` when an instance is up (skipped quietly
    otherwise). It's called from `hyprland.conf`'s exec-once right after
    `wal -i`, and from `switch-theme.sh` right after a preset copy.
+   Ox follows the same dual-call pattern: `config/ox/ox-theme.sh`
+   renders `~/.cache/wal/colors.sh` through
+   `~/.config/ox/.oxrc.template` into `~/.config/ox/.oxrc` (quiet
+   exit when either input is missing), from those same two places.
    Ghostty loads `config-file` includes AFTER the primary config, so
    colors.conf overrides the Catppuccin Mocha palette baked into
    `config/ghostty/config` — keep those baked lines, they're the
