@@ -265,9 +265,12 @@ Notes:
   for every preset — that all eight per-app formats are present, that
   every hex value in every format file comes from that preset's own
   `colors.sh`, and that `switch-theme.sh` copies exactly the files the
-  presets ship (no orphans, no omissions). It runs in the lint CI
-  workflow and in the `60-update.sh` lint gate, so a drifted theme
-  blocks an update instead of silently shipping.
+  presets ship (no orphans, no omissions); it also proves every
+  `{placeholder}` in the `config/wal/templates/` templates is a name
+  pywal16 exports, so a typo'd token can't render verbatim into a live
+  config. It runs in the lint CI workflow and in the `60-update.sh`
+  lint gate, so a drifted theme blocks an update instead of silently
+  shipping.
 
 ---
 
@@ -634,8 +637,9 @@ scripts/61-rollback.sh          # by hand, after any failed update
    hatch away and it refuses to run. Override with `--no-snapshot`.
 4. **Advance** — `git merge --ff-only` only. Diverged history aborts;
    unconsumed.
-5. **Lint gate** — the exact lint.yml checks against the new tree.
-   Nothing is deployed before this passes.
+5. **Lint gate** — the same lint manifest CI runs (`scripts/lint.sh`)
+   against the new tree; tools the box lacks print a SKIP line and stay
+   enforced in CI. Nothing is deployed before this passes.
 6. **Apply** — re-runs `00-base.sh` → `45-snapshots.sh` in order,
    interactively where they always were.
 7. **Gate** — `hyprctl reload` + `hyprctl configerrors` (skipped with a
@@ -2909,7 +2913,7 @@ linux-rice/
 ├── LICENSE                                  MIT
 ├── .gitignore
 ├── .gitattributes                           forces LF line endings
-├── .github/workflows/lint.yml               CI: bash -n, shellcheck, jq, emacs byte-compile, luajit parse, preset matrix
+├── .github/workflows/lint.yml               CI: one named step per check, each calling scripts/lint.sh
 ├── scripts/
 │   ├── 00-base.sh                          official-repo install + makepkg.conf
 │   ├── 10-aur.sh                           reviewed-PKGBUILD builds + repo-add
@@ -2917,7 +2921,8 @@ linux-rice/
 │   ├── 30-dotfiles.sh                      copies config/ into ~/.config (backup first)
 │   ├── 40-gaming.sh                        verifies gaming extras + templates
 │   ├── 45-snapshots.sh                     snapper on btrfs / timeshift-rsync elsewhere (picks by root fs)
-│   └── 50-verify.sh                        read-only post-deploy health check (PASS/FAIL, never fixes)
+│   ├── 50-verify.sh                        read-only post-deploy health check (PASS/FAIL, never fixes)
+│   └── lint.sh                             the lint manifest — owns every file list, runs every check (CI + update gate + Zed tasks all call it)
 └── config/
     ├── hypr/
     │   ├── hyprland.conf                   compositor config (multi-monitor wildcard)

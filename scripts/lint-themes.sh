@@ -4,8 +4,8 @@
 # Palette contract: every preset dir in config/hypr/themes/ must carry the
 # same 8 colors.* files switch-theme.sh copies; every hex in any file must
 # come from that preset's own colors.sh (the single source of truth per
-# theme). Templates under config/wal/templates/ use wal placeholders and are
-# checked separately: every {placeholder} must be a name wal exports.
+# theme). Templates under config/wal/templates/ are checked in [4/4]:
+# every {placeholder} must be a name (or format property) wal exports.
 #
 # Runs anywhere (CI, lint step, manual). No side effects, read-only.
 # Exit 0 = synced. Exit 1 = drift found, with the offending file:line:hex.
@@ -17,7 +17,7 @@ EXPECTED=(colors.sh colors.el colors-hyprland.conf colors-neomutt.muttrc \
           colors-rofi.rasi colors-wal.vim colors-waybar.css colors-zed.json)
 FAILS=0
 
-echo "==> [1/3] Per-preset file inventory"
+echo "==> [1/4] Per-preset file inventory"
 for d in config/hypr/themes/*/; do
     name=${d%/}; name=${name##*/}
     missing=()
@@ -33,7 +33,7 @@ for d in config/hypr/themes/*/; do
 done
 echo
 
-echo "==> [2/3] Palette consistency inside each preset"
+echo "==> [2/4] Palette consistency inside each preset"
 # For each preset, seed the known-color set from colors.sh; then walk every
 # sibling colors.* file and flag any hex not declared there.
 for d in config/hypr/themes/*/; do
@@ -68,7 +68,7 @@ for d in config/hypr/themes/*/; do
 done
 echo
 
-echo "==> [3/3] switch-theme.sh copy list == preset inventory"
+echo "==> [3/4] switch-theme.sh copy list == preset inventory"
 # Extract the exact `cp -f` block from switch-theme.sh and read the basenames
 # off it. Then each preset dir must carry every name it lists. Comparing the
 # other direction (presets list more than copied) is also a real bug — an
@@ -86,6 +86,56 @@ if [[ "$cp_list" != "$preset_list" ]]; then
 else
     echo "  ok: switch-theme.sh copies every file the presets ship"
 fi
+echo
+
+echo "==> [4/4] wal templates: every {placeholder} is a wal export"
+# config/wal/templates/* are the render inputs for the live palette
+# (rofi, emacs, zed, hyprland, neomutt); wal substitutes {name} tokens
+# from its palette dict, so a typo'd name renders verbatim into a
+# config file. Base names are pywal16's palette keys; a dotted suffix
+# must be one of its Color format properties (eylles/pywal16, util.py):
+# rgb rgbspace xrgba rgba hex_argb alpha alpha_dec alpha_hex decimal
+# decimal_strip octal octal_strip strip red green blue red_hex green_hex
+# blue_hex red_dec green_dec blue_dec w3_luminance.
+WAL_BASES=(background foreground cursor wallpaper color{0..15})
+WAL_SUFFIXES=(rgb rgbspace xrgba rgba hex_argb alpha alpha_dec alpha_hex \
+              decimal decimal_strip octal octal_strip strip red green blue \
+              red_hex green_hex blue_hex red_dec green_dec blue_dec \
+              w3_luminance)
+for f in config/wal/templates/*; do
+    [[ -f $f ]] || continue
+    name=${f##*/}
+    bad=0
+    mapfile -t toks < <(grep -oE '\{[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)?\}' "$f" | sort -u)
+    for tok in "${toks[@]}"; do
+        inner=${tok:1:${#tok}-2}
+        base=${inner%%.*}
+        hit=0
+        for b in "${WAL_BASES[@]}"; do [[ $b == "$base" ]] && { hit=1; break; }; done
+        if [[ $hit -eq 0 ]]; then
+            while IFS= read -r line; do
+                echo "  FAIL $name:$line placeholder $tok is not a wal export"
+            done < <(grep -nF "$tok" "$f" | cut -d: -f1)
+            bad=1
+            continue
+        fi
+        [[ $inner == *.* ]] || continue
+        suffix=${inner#*.}
+        hit=0
+        for s in "${WAL_SUFFIXES[@]}"; do [[ $s == "$suffix" ]] && { hit=1; break; }; done
+        if [[ $hit -eq 0 ]]; then
+            while IFS= read -r line; do
+                echo "  FAIL $name:$line placeholder $tok: .$suffix is not a wal format property"
+            done < <(grep -nF "$tok" "$f" | cut -d: -f1)
+            bad=1
+        fi
+    done
+    if [[ $bad -eq 0 ]]; then
+        echo "  ok   $name: ${#toks[@]} unique placeholders, all wal exports"
+    else
+        ((FAILS++))
+    fi
+done
 echo
 
 if [[ $FAILS -eq 0 ]]; then

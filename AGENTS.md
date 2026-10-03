@@ -122,8 +122,15 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   │                          rebuild, re-gate; stands alone too
 │   ├── install-zed.sh         standalone Zed-only installer (no full rice deploy)
 │   ├── lint-themes.sh         theme-preset <-> colors.sh <-> switch-theme.sh
-│   │                          sync checker (repo-side; runs in lint CI and the
+│   │                          sync + wal-template placeholder checker
+│   │                          (repo-side; runs in lint CI and the
 │   │                          60-update.sh lint gate)
+│   ├── lint.sh                lint manifest: owns every lint file list and
+│   │                          runs all checks (bash -n, shellcheck, jq,
+│   │                          emacs, luajit, g++, lint-themes.sh); CI, the
+│   │                          60-update.sh lint gate, and the Zed tasks
+│   │                          all call it — strict in CI, --skip-missing in
+│   │                          the gate and local runs
 │   └── lib/rice-version.sh    shared state store: deployed.env/rollback.env,
 │                              update.log, git-restore helper
 └── config/
@@ -226,43 +233,49 @@ interactively — do not store tokens or accept PASTED tokens in chat.
 
 ## Lint / verify / test
 
-There is no test suite. What verifying exists (also enforced on push/PR
-by `.github/workflows/lint.yml`):
+There is no test suite. What verifying exists lives in ONE manifest,
+`scripts/lint.sh` — it owns every lint file list and runs every check.
+CI (`.github/workflows/lint.yml`), the `60-update.sh` lint gate, and
+the `.zed/tasks.json` tasks all call that script; no caller re-declares
+a list. CI runs it strict (a missing tool is a red build); the gate and
+local runs use `--skip-missing` (each absent tool prints a SKIP line —
+loud, never silent).
 
-1. **Bash syntax check** on every script edit (mirrors lint.yml's list,
-   including the non-scripts .sh files it names explicitly):
+1. **The full suite** (what CI runs, one named step per check):
    ```
-   bash -n scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh \
-       config/hypr/start-mpvpaper.sh config/vlc/vlc-open \
-       config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh \
-       config/croft/croft-launch.sh config/ox/ox-theme.sh \
-       config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh \
-       config/systemd/user/rice-update-check.sh
+   bash scripts/lint.sh all
+   # or one check: bash | shellcheck | json | emacs | lua | cpp | themes
    ```
-2. **JSON validity** on swaync + wlogout configs (with `jq`):
-   ```
-   jq . config/swaync/config.json        # has a // comment line — strip first if jq is strict
-   jq . config/wlogout/layout           # same
-   ```
-3. **Conf file sanity** (the conv comment header on swaync's
-   `config.json` and wlogout's `layout` is **deliberate** — keeps the
-   `write` tool's JSON auto-detect from misparsing the file content as
-   an object literal at session-time. Don't remove it without testing).
-4. **C++ syntax check** on the rofi keybind menu (mirrors lint.yml):
-   ```
-   g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
-   ```
-5. **Theme sync check** — presets carry all 8 formats, every hex traces
-   back to the preset's own colors.sh, and switch-theme.sh's copy list
-   matches the preset inventory exactly (mirrors lint.yml + the
-   60-update.sh lint gate):
-   ```
-   bash scripts/lint-themes.sh
-   ```
+2. **Bash syntax** — `bash -n` over every shell file: `scripts/`,
+   `scripts/lib/`, every config-side `.sh` (the `config/**/*.sh` glob
+   absorbs the helpers AND the preset `colors.sh`, which pywal16's
+   format leaves shebang-less), plus the extensionless POSIX-sh
+   `config/vlc/vlc-open`.
+3. **JSON validity** — jq parse of every tracked JSON/JSONC file: the
+   plain set (`config/nvim/lazy-lock.json`, `.zed/tasks.json`, the
+   preset and wal-template `colors-zed.json`), the deliberate
+   `//`-header set stripped first (swaync, zed settings/keymap, the
+   postgres `.jsonc`, waybar's indented-header `config`), and
+   wlogout's concatenated button objects via `jq -s`.
+4. **Conf file sanity** (the `//` comment headers on swaync's
+   `config.json`, wlogout's `layout`, and waybar's `config` are
+   **deliberate** — they keep the `write` tool's JSON auto-detect from
+   misparsing the file content as an object literal at session-time.
+   Don't remove them without testing).
+5. **C++ syntax check** on the rofi keybind menu
+   (`g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only`, via
+   `lint.sh cpp`).
+6. **Theme + template sync** — `scripts/lint-themes.sh` (via
+   `lint.sh themes`): presets carry all 8 formats, every hex traces
+   back to the preset's own `colors.sh`, switch-theme.sh's copy list
+   matches the preset inventory exactly, and every `{placeholder}` in
+   the wal templates is a name (or Color format property) pywal16
+   exports.
 
 If you add a new script, structure, or behavior, run the relevant
-syntax checks before committing, and add it to the lint workflow's
-coverage if it isn't already (CI catches it otherwise).
+`lint.sh` checks before committing, and extend the manifest's lists
+(globs first) when a new file isn't already absorbed — CI runs strict,
+so the manifest is the only place coverage ever needs adding.
 
 ---
 
@@ -292,7 +305,8 @@ coverage if it isn't already (CI catches it otherwise).
 | Change status bar layout                      | `config/waybar/config` + `config/waybar/style.css`           |
 | Change the wallpaper (user-side, post-install) | static: drop image at `~/.config/hypr/wallpaper.jpg`, run `wal -i`; animated: drop video at `~/.config/hypr/wallpaper.mp4` (mpvpaper) — NOT repo edits |
 | Change the color theme (no wallpaper)          | SUPER+SHIFT+T or `~/.config/hypr/switch-theme.sh <mocha\|gruvbox\|tokyonight\|osaka-jade>`; presets live in `config/hypr/themes/` |
-| Audit theme presets for palette/format drift    | `scripts/lint-themes.sh` (runs in lint.yml and 60-update.sh's lint gate) |
+| Audit theme presets for palette/format drift    | `scripts/lint-themes.sh` (via `scripts/lint.sh themes`; runs in lint CI and 60-update.sh's lint gate) |
+| Run or extend the lint suite                     | `scripts/lint.sh` — the manifest that CI, the update gate, and the Zed tasks all call |
 
 ---
 
