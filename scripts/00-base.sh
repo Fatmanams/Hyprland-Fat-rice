@@ -115,7 +115,7 @@ sudo pacman -S --needed --noconfirm \
     nano neovim lapce neovide \
     zed \
     polkit polkit-gnome polkit-kde-agent gnome-keyring seahorse \
-    NetworkManager \
+    networkmanager \
     pipewire wireplumber \
     noto-fonts noto-fonts-emoji noto-fonts-cjk ttf-liberation ttf-dejavu \
     ttf-jetbrains-mono-nerd ttf-nerd-fonts-symbols \
