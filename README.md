@@ -484,7 +484,7 @@ Before the rice looks right:
    ```
 
 2. **Wallpaper.** Drop a JPG at `~/.config/hypr/wallpaper.jpg`. This is
-   the path read by both `hyprpaper.conf`'s preload= AND the `wal -i`
+   the path read by both `hyprpaper.conf`'s `path =` line AND the `wal -i`
    exec-once in `hyprland.conf` — keeping them in sync means changing
    the wallpaper is one command. Once dropped:
    ```
@@ -502,9 +502,12 @@ Before the rice looks right:
    line just below it.
 
 3. **Static wallpaper (optional per-monitor override).**
-   `hyprpaper.conf` uses `wallpaper = , ...` to cover every output. Replace
-   it with one `wallpaper = <monitor>, ...` line per monitor if displays
-   need different images.
+   `hyprpaper.conf` covers every output with one `wallpaper { }` block
+   whose `monitor = *` wildcard matches all outputs — current hyprpaper
+   (Arch ships 0.8.4) has no `preload=` or flat
+   `wallpaper = <monitor>, <path>` keywords, and it exits on a config it
+   can't parse. Add one block per monitor (with the output's real name
+   from `hyprctl monitors`) if displays need different images.
 
 4. **AppArmor (only if you want the "shields" actually on).** The
    `apparmor` package is installed by `00-base.sh` but the LSM is INERT

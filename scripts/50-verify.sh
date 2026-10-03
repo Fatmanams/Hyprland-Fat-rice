@@ -27,16 +27,19 @@ echo "==> [1/9] Monitor and wallpaper layout"
 # Wildcard and explicit layouts are both valid; what must never happen is
 # a hyprland.conf with no monitor= line or a hyprpaper.conf with no
 # wallpaper rule — that means the configs are broken or missing, not
-# customized.
+# customized. hyprpaper 0.8.x rules are `wallpaper { }` blocks (the flat
+# `wallpaper =` keyword is gone), so the rule needs both an uncommented
+# block opener and an uncommented path= line with a value.
 if grep -qE '^monitor=' "$HYPR_CFG/hyprland.conf" 2>/dev/null \
-        && grep -qE '^wallpaper\s*=' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null; then
+        && grep -qE '^[[:space:]]*wallpaper[[:space:]]*\{' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null \
+        && grep -qE '^[[:space:]]*path[[:space:]]*=[[:space:]]*[^[:space:]#]' "$HYPR_CFG/hyprpaper.conf" 2>/dev/null; then
     if grep -qE '^monitor=,preferred,auto,1[[:space:]]*$' "$HYPR_CFG/hyprland.conf"; then
         pass "monitor layout present (wildcard: every output, preferred mode)"
     else
         pass "monitor layout present (explicit per-output lines)"
     fi
 else
-    fail "hyprland.conf or hyprpaper.conf missing/broken (no monitor= or wallpaper= line)"
+    fail "hyprland.conf or hyprpaper.conf missing/broken (no monitor= line or no wallpaper{}/path= rule)"
 fi
 
 echo "==> [2/9] GPU driver sanity"
