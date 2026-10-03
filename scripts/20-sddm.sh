@@ -60,13 +60,35 @@ fi
 echo "==> [4/5] Selecting 'astronaut' sub-theme in metadata.desktop"
 META="$THEME_DIR/metadata.desktop"
 if [[ -f "$META" ]]; then
-    # Keyit dev's metadata.desktop ships a ConfigFile= line. Edit it.
+    # Keyitdev's metadata.desktop ships ConfigFile=Themes/<name>.conf —
+    # the greeter resolves that path relative to the theme dir. Upstream
+    # master (v1.4, Theme-API=2.0) already defaults to
+    # Themes/astronaut.conf; pin it so a later upstream default change
+    # can't silently swap the sub-theme.
     if grep -q '^ConfigFile=' "$META"; then
-        sudo sed -i 's|^ConfigFile=.*|ConfigFile= astronaut.conf|' "$META"
-        echo "    metadata.desktop -> ConfigFile= astronaut.conf"
+        sudo sed -i 's|^ConfigFile=.*|ConfigFile=Themes/astronaut.conf|' "$META"
+        echo "    metadata.desktop -> ConfigFile=Themes/astronaut.conf"
+    else
+        echo "  !! metadata.desktop has no ConfigFile= line — theme layout changed upstream."
+        echo "     NOT enabling sddm.service. Stop and review $META."
+        exit 1
     fi
+    # Fail loudly BEFORE sddm.service is enabled: the ConfigFile value
+    # the greeter will actually load must resolve to a file inside the
+    # clone. (The old sed wrote ' astronaut.conf' — unresolvable, so
+    # the greeter silently fell back to its defaults.)
+    CFG=$(sed -n 's|^ConfigFile=||p' "$META" | tail -n1 || true)
+    CFG="${CFG#"${CFG%%[![:space:]]*}"}"
+    CFG="${CFG%"${CFG##*[![:space:]]}"}"
+    if [[ -z "$CFG" || ! -f "$THEME_DIR/$CFG" ]]; then
+        echo "  !! ConfigFile '$CFG' does not resolve inside the clone:"
+        echo "     $THEME_DIR/$CFG not found — theme layout changed upstream."
+        echo "     NOT enabling sddm.service. Stop and review."
+        exit 1
+    fi
+    echo "    ConfigFile resolves inside the clone: $CFG"
     if ! grep -q '^Name=' "$META"; then
-        echo "    (metadata.desktop seems incomplete — review manually)"
+        echo "    (metadata.desktop has no Name= line — review manually)"
     fi
 else
     echo "  !! metadata.desktop not found at $META — theme layout may have changed. Stop and review."

@@ -445,11 +445,12 @@ chmod +x scripts/*.sh
 
 # 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
-#    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all eight pywal formats, and the
-#    snapshot tooling live (snapper timers on btrfs, cronie otherwise —
-#    same branch 45-snapshots.sh took). Best run after one Hyprland
-#    session has booted.
+#    hardware, ufw/clamav-freshclam/bluetooth live, SDDM enabled with
+#    the theme's ConfigFile resolving inside the clone (rollback-
+#    snapshot probe stays sudo-gated), every theme preset carrying all
+#    eight pywal formats, and the snapshot tooling live (snapper timers
+#    on btrfs, cronie otherwise — same branch 45-snapshots.sh took).
+#    Best run after one Hyprland session has booted.
 ./scripts/50-verify.sh
 ```
 

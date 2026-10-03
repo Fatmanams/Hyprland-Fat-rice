@@ -100,11 +100,36 @@ else
     fail "bluetooth.service not active (state: $(systemctl is-active bluetooth.service 2>&1))"
 fi
 
-echo "==> [6/9] SDDM rollback snapshot exists"
-# 20-sddm.sh snapshots /etc/sddm.conf.d + /usr/share/sddm/themes into
-# /root/sddm-snap.<TS>/ before touching anything. /root is unreadable
-# to a normal user, so without sudo we can only say "cannot check"
-# rather than guess — rerun with sudo to verify properly.
+echo "==> [6/9] SDDM service, theme clone, rollback snapshot"
+# 20-sddm.sh step [5/5] enables sddm.service, and its step [4/5] guard
+# pins metadata.desktop's ConfigFile= to a path that must resolve
+# inside the theme clone — both checkable without root. The rollback
+# snapshot 20-sddm.sh takes under /root stays the sudo-gated extra it
+# always was: /root is unreadable to a normal user, so without sudo we
+# can only say "cannot check" rather than guess — rerun with sudo to
+# verify that half properly.
+if systemctl is-enabled sddm.service &>/dev/null; then
+    pass "sddm.service enabled"
+else
+    fail "sddm.service not enabled (state: $(systemctl is-enabled sddm.service 2>&1))"
+fi
+SDDM_THEME_DIR=/usr/share/sddm/themes/sddm-astronaut-theme
+if [[ -f "$SDDM_THEME_DIR/metadata.desktop" ]]; then
+    pass "theme present: $SDDM_THEME_DIR/metadata.desktop"
+    # Same resolution as 20-sddm.sh's step [4/5] guard: the ConfigFile=
+    # value is read from metadata.desktop and resolved relative to the
+    # theme dir — the path the greeter actually loads.
+    sddm_cfg=$(sed -n 's|^ConfigFile=||p' "$SDDM_THEME_DIR/metadata.desktop" 2>/dev/null | tail -n1 || true)
+    sddm_cfg="${sddm_cfg#"${sddm_cfg%%[![:space:]]*}"}"
+    sddm_cfg="${sddm_cfg%"${sddm_cfg##*[![:space:]]}"}"
+    if [[ -n "$sddm_cfg" && -f "$SDDM_THEME_DIR/$sddm_cfg" ]]; then
+        pass "ConfigFile '$sddm_cfg' resolves inside the theme clone"
+    else
+        fail "ConfigFile '$sddm_cfg' does not resolve inside the theme clone (greeter falls back to defaults)"
+    fi
+else
+    fail "theme missing: no $SDDM_THEME_DIR/metadata.desktop (20-sddm.sh may not have run)"
+fi
 if sudo -n true 2>/dev/null; then
     if sudo -n bash -c 'compgen -G "/root/sddm-snap.*" >/dev/null'; then
         pass "at least one /root/sddm-snap.* snapshot exists"
