@@ -8,18 +8,20 @@
 # explicit path only where no glob can express it.
 #
 # Checks (one per CI step, so a red build names the broken class):
-#   bash        bash -n over every shell file, the four preset
-#               colors.sh included (pywal16's format leaves them
-#               shebang-less)
-#   shellcheck  shellcheck --severity=error over the same set minus the
-#               shebang-less presets (SC2148 is error severity)
-#   json        jq parse: the plain set, the deliberate //-header set
-#               (stripped first), and wlogout's concatenated objects
-#   emacs       byte-compile init.el + the preset/template colors.el
-#   lua         luajit parse of nvim's init.lua (nvim's dialect)
-#   cpp         g++ -fsyntax-only of the rofi keybind menu
-#   themes      scripts/lint-themes.sh (presets + wal templates)
-#   all         everything above, in that order
+#   - bash        bash -n over every shell file, the four preset
+#                 colors.sh included (pywal16's format leaves them
+#                 shebang-less)
+#   - shellcheck  runs shellcheck --severity=error over the same set
+#                 minus the shebang-less presets (SC2148 is error
+#                 severity; no comment line may start with the bare
+#                 word "shellcheck" or it parses as a directive)
+#   - json        jq parse: the plain set, the deliberate //-header set
+#                 (stripped first), and wlogout's concatenated objects
+#   - emacs       byte-compile init.el + the preset/template colors.el
+#   - lua         luajit parse of nvim's init.lua (nvim's dialect)
+#   - cpp         g++ -fsyntax-only of the rofi keybind menu
+#   - themes      scripts/lint-themes.sh (presets + wal templates)
+#   - all         everything above, in that order
 #
 # Modes:
 #   strict (default)   a required tool missing from PATH is a FAIL —

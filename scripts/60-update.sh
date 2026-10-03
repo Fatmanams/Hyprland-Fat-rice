@@ -266,10 +266,11 @@ fi
 echo "==> [5/8] Lint gate (scripts/lint.sh --skip-missing)"
 # The manifest owns the file lists: the same script CI runs, invoked on
 # the NEW tree, so coverage travels with the update. The gate runs every
-# check whose tool is present on this box and prints a SKIP line for each
-# missing one (bash -n and the theme-sync check always run; jq, g++,
-# shellcheck, emacs, luajit join in when installed). A manifest path that
-# doesn't exist fails the gate — coverage must not rot silently.
+# check whose tool is present on this box and prints a SKIP line for
+# each missing one (bash -n and the theme-sync check always run; jq,
+# g++, and the shellcheck/emacs/luajit checks join in when installed).
+# A manifest path that doesn't exist fails the gate — coverage must not
+# rot silently.
 if (cd "$REPO_ROOT" && bash scripts/lint.sh --skip-missing all); then
     echo "    lint gate passed"
 else
