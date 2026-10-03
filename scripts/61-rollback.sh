@@ -66,7 +66,7 @@ fi
 FAILED_PHASE=${RICE_FAILED_PHASE:-manual}
 SNAPSHOT=${RICE_SNAPSHOT:-none}
 BACKUP=${RICE_CONFIG_BACKUP:-}
-[[ -n $BACKUP && -d $BACKUP ]] || BACKUP=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1)
+[[ -n $BACKUP && -d $BACKUP ]] || BACKUP=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1 || true)
 
 echo "==> Rolling back to ${RICE_PREV_BRANCH}@${RICE_PREV_COMMIT:0:12}"
 echo "    failed phase: $FAILED_PHASE"
@@ -90,6 +90,10 @@ if [[ -n $BACKUP && -d $BACKUP ]]; then
     if command -v rsync >/dev/null 2>&1; then
         rsync -a --delete "$BACKUP/" "$HOME/.config/" || rollback_failed=1
     else
+        echo "    !! rsync is not installed — restoring with cp -a, which" >&2
+        echo "    !! is NOT --delete-complete: files the failed update added" >&2
+        echo "    !! under ~/.config survive this restore. rsync is in" >&2
+        echo "    !! 00-base.sh's package list — install it for exact restores." >&2
         cp -a "$BACKUP/." "$HOME/.config/" || rollback_failed=1
     fi
     echo "    restored from $BACKUP"
