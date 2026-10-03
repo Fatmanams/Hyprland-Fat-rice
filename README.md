@@ -55,8 +55,8 @@ source is used. The packages this rice does compile use CPU-native flags
 | Compositor       | Hyprland             | pacman (extra)          |       |
 | Status bar       | waybar               | pacman (extra)          |       |
 | Notifications    | swaync               | pacman (extra)          | control-center + popup |
-| Launcher         | rofi-wayland        | pacman (extra)          | was AUR-only, moved upstream |
-| Wallpaper        | swww                 | pacman (extra)          | was AUR-only, moved upstream |
+| Launcher         | rofi                | pacman (extra)          | was AUR-only (as rofi-wayland), absorbed upstream into rofi 2.0 |
+| Wallpaper        | awww                 | pacman (extra)          | was AUR-only (as swww), renamed upstream to awww |
 | Animated wallpaper | mpvpaper           | **AUR — makepkg'd**     | default; hyprpaper kept as static fallback |
 | Wall daemon      | hyprpaper            | pacman (extra)          | static fallback config |
 | Clipboard        | cliphist + wl-clipboard | pacman (extra)       |       |
@@ -145,9 +145,9 @@ there is a documented performance reason to add them here.
 **Packages you originally listed as AUR-only that are now in official
 repos** — these are installed by `scripts/00-base.sh`, **not** built:
 
-- `rofi-wayland` — in `extra`
+- `rofi` — in `extra` (2.0.0-1; provides/replaces the former AUR name `rofi-wayland`)
 - `ghostty` — in `extra`
-- `swww` — in `extra`
+- `awww` — in `extra` (0.12.1-1; provides/replaces the former AUR name `swww`)
 - `swaync` — in `extra`
 - `cliphist` — in `extra`
 - `nwg-look` — in `extra`
