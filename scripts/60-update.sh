@@ -13,8 +13,10 @@
 #                    unless --no-snapshot. Records the return ticket.
 #   4/8 Advance    — git merge --ff-only origin/<branch> ONLY. A non-ff
 #                    (diverged history) aborts; nothing was deployed yet.
-#   5/8 Lint gate  — the same checks lint.yml runs, on the NEW tree.
-#                    Failure: checkout rolled back, exit. Nothing deployed.
+#   5/8 Lint gate  — the lint manifest CI runs (scripts/lint.sh) on the
+#                    NEW tree; tools this box lacks SKIP loudly here and
+#                    stay enforced in CI. Failure: checkout rolled back,
+#                    exit. Nothing deployed.
 #   6/8 Apply      — re-run 00 10 20 30 40 45 in order. Scripts take no
 #                    flags; the interactive bits (10-aur's PKGBUILD review)
 #                    STAY interactive, that's deliberate.
@@ -261,55 +263,22 @@ fi
 
 # ---- 5/8 lint gate on the new tree ----------------------------------------------
 
-echo "==> [5/8] Lint gate (fast subset of .github/workflows/lint.yml)"
-# This gate runs what can run on the box right now without installing
-# anything: bash -n on all scripts (incl. scripts/lib/, systemd helpers),
-# jq parse on the three `// -prefixed` JSONs + wlogout's layout, the
-# g++ -fsyntax-only build of keybind-menu.cpp, and the lint-themes.sh
-# palette-sync check (pure bash + comm). CI additionally runs shellcheck,
-# emacs byte-compile, and luajit (tools the box may not have).
-# If the new tree breaks any of those, it fails here too IF and ONLY IF
-# the tool is present — so keep them non-optional in CI, never silent here.
-# NOTE: a (...)-list followed by `||` DISABLES `set -e` inside it, so this
-# gate runs in a subshell with set -e and the parent captures the status
-# with errexit deliberately off.
-set +e
-(
-    set -e
-    cd "$REPO_ROOT"
-    for f in scripts/*.sh scripts/lib/*.sh \
-             config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh \
-             config/vlc/vlc-open config/ghostty/ghostty-theme.sh \
-             config/clamav/scan-targets.sh config/croft/croft-launch.sh \
-             config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh \
-             config/systemd/user/rice-update-check.sh; do
-        [[ -e $f ]] || continue   # a file may arrive/leave with the update
-        bash -n "$f"
-    done
-    for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json postgres-language-server.jsonc; do
-        sed '/^\/\//d' "$f" | jq empty
-    done
-    sed '/^\/\//d' config/wlogout/layout | jq -s empty
-    # The C++ check only exists once the keybind-menu branch lands; the
-    # update that carries it adds the file, later updates keep checking it.
-    if [[ -f config/rofi/keybind-menu.cpp ]]; then
-        g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
-    fi
-    # Same story for the theme-sync check (arrived with the theme system).
-    if [[ -f scripts/lint-themes.sh ]]; then
-        bash scripts/lint-themes.sh
-    fi
-)
-lint_rc=$?
-set -e
-if [[ $lint_rc -ne 0 ]]; then
-    echo "    lint gate FAILED on the new tree (rc=$lint_rc) — nothing was deployed." >&2
+echo "==> [5/8] Lint gate (scripts/lint.sh --skip-missing)"
+# The manifest owns the file lists: the same script CI runs, invoked on
+# the NEW tree, so coverage travels with the update. The gate runs every
+# check whose tool is present on this box and prints a SKIP line for each
+# missing one (bash -n and the theme-sync check always run; jq, g++,
+# shellcheck, emacs, luajit join in when installed). A manifest path that
+# doesn't exist fails the gate — coverage must not rot silently.
+if (cd "$REPO_ROOT" && bash scripts/lint.sh --skip-missing all); then
+    echo "    lint gate passed"
+else
+    echo "    lint gate FAILED on the new tree — nothing was deployed." >&2
     echo "    Restoring the checkout and stopping." >&2
     rice_git_restore "$REPO_ROOT" "$PREV_BRANCH" "$PREV_COMMIT" "$TARGET_COMMIT"
     rice_log "update-abort branch=$BRANCH reason=lint-gate"
     exit 1
 fi
-echo "    lint gate passed"
 
 # ---- 6/8 apply: re-run the install sequence -------------------------------------
 

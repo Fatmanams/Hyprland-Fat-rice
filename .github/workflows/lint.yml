@@ -10,86 +10,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: bash -n syntax check (AGENTS.md minimum)
-        run: |
-          set -euo pipefail
-          for f in scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh config/systemd/user/rice-update-check.sh; do
-            echo "bash -n $f"
-            bash -n "$f"
-          done
+      # The file lists live in scripts/lint.sh (the lint manifest); each
+      # step below names its check, so a red build pinpoints the class.
+      # Steps run strict: a tool vanishing from the runner is a red
+      # build, never a silent skip.
+
+      - name: bash -n syntax check
+        run: bash scripts/lint.sh bash
 
       - name: shellcheck (error severity)
-        run: |
-          set -euo pipefail
-          shellcheck --severity=error scripts/*.sh scripts/lib/*.sh config/hypr/gpu-env.sh config/hypr/switch-theme.sh config/hypr/start-mpvpaper.sh config/vlc/vlc-open config/ghostty/ghostty-theme.sh config/clamav/scan-targets.sh config/croft/croft-launch.sh config/ox/ox-theme.sh config/ox/ox-launch.sh config/neomacs/neomacs-launch.sh config/systemd/user/rice-update-check.sh
+        run: bash scripts/lint.sh shellcheck
 
-      - name: jq parse check (strip deliberate // comment headers first)
-        run: |
-          set -euo pipefail
-          for f in config/swaync/config.json config/zed/settings.json config/zed/keymap.json postgres-language-server.jsonc; do
-            echo "jq $f"
-            sed '/^\/\//d' "$f" | jq empty
-          done
-          echo "jq config/wlogout/layout (concatenated button objects)"
-          sed '/^\/\//d' config/wlogout/layout | jq -s empty
+      - name: jq parse check (strip deliberate // headers first)
+        run: bash scripts/lint.sh json
 
       - name: emacs lisp syntax check (byte-compile init.el + palette files)
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq emacs-nox
-          # -Q: no site/user init, so nothing on the runner influences the
-          # result. Byte-compiling surfaces unbalanced parens and malformed
-          # forms — the class of breakage worth catching here (the config is
-          # loaded, not linted, at runtime). The .elc files it writes are
-          # build artifacts of the check and are not committed.
-          for f in config/emacs/init.el config/hypr/themes/*/colors.el; do
-            echo "byte-compile $f"
-            emacs -Q --batch -f batch-byte-compile "$f"
-          done
-          find config -name '*.elc' -delete
+          bash scripts/lint.sh emacs
 
-      - name: theme presets carry every pywal format
-        run: |
-          set -euo pipefail
-          # AGENTS.md palette contract: each preset must ship all eight
-          # formats, and switch-theme.sh must copy each one.
-          rc=0
-          for d in config/hypr/themes/*/; do
-            for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
-              if [ ! -f "$d$f" ]; then
-                echo "MISSING: $d$f"
-                rc=1
-              fi
-            done
-          done
-          for f in colors-waybar.css colors-rofi.rasi colors-wal.vim colors.el colors.sh colors-zed.json colors-hyprland.conf colors-neomutt.muttrc; do
-            if ! grep -q "$f" config/hypr/switch-theme.sh; then
-              echo "MISSING from switch-theme.sh cp list: $f"
-              rc=1
-            fi
-          done
-          exit $rc
-
-      - name: theme presets internally synchronized (lint-themes.sh)
-        run: |
-          set -euo pipefail
-          # Deeper than the format-presence check above: every preset's
-          # hexes must come from its own colors.sh, and switch-theme.sh's
-          # cp list must equal the preset inventory exactly.
-          bash scripts/lint-themes.sh
+      # Deeper than format presence: every preset's hexes must come from
+      # its own colors.sh, switch-theme.sh's cp list must equal the
+      # preset inventory, and every wal-template {placeholder} must be a
+      # name pywal16 exports.
+      - name: theme presets + wal templates (lint-themes.sh)
+        run: bash scripts/lint.sh themes
 
       - name: nvim init.lua syntax (LuaJIT parse — nvim's dialect)
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq luajit
-          luajit -bl config/nvim/init.lua /dev/null
+          bash scripts/lint.sh lua
 
       # g++ is preinstalled on ubuntu-latest; -fsyntax-only parses/semantics
       # without producing a binary (30-dotfiles.sh does the real -O2 build).
       # -Werror locks in the currently warning-free compile.
       - name: keybind-menu.cpp compiles clean (g++ -Werror)
-        run: |
-          set -euo pipefail
-          g++ -std=c++17 -Wall -Wextra -Werror -fsyntax-only config/rofi/keybind-menu.cpp
+        run: bash scripts/lint.sh cpp
