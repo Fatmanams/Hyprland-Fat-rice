@@ -250,8 +250,11 @@ Notes:
   the moment `wallpaper.jpg` exists, `wal -i` takes over again.
 - Ghostty follows both modes: `ghostty-theme.sh` converts the same
   `colors.sh` into `~/.config/ghostty/colors.conf` and reloads running
-  windows (its baked Mocha palette is only the pre-wal fallback). Zed
-  follows too: every mode lands `colors-zed.json` in `~/.cache/wal/`,
+  windows (its baked Mocha palette is only the pre-wal fallback). Ox
+  follows too: `ox-theme.sh` renders the same `colors.sh` into
+  `~/.config/ox/.oxrc`, called from the same two refresh points as
+  Ghostty (the exec-once `wal -i` branch and `switch-theme.sh`).
+  Zed follows too: every mode lands `colors-zed.json` in `~/.cache/wal/`,
   which is symlinked to `~/.config/zed/themes/pywal.json` and
   hot-reloaded as the "Pywal" theme. Window borders follow too —
   `hyprland.conf` ends with `source = ~/.cache/wal/colors-hyprland.conf`,
@@ -445,11 +448,12 @@ chmod +x scripts/*.sh
 
 # 7. Post-deploy health check — read-only, reports PASS/FAIL never
 #    auto-fixes: first-boot TODOs cleared, GPU driver matches the
-#    hardware, ufw/clamav-freshclam/bluetooth live, SDDM snapshot on
-#    disk, every theme preset carrying all eight pywal formats, and the
-#    snapshot tooling live (snapper timers on btrfs, cronie otherwise —
-#    same branch 45-snapshots.sh took). Best run after one Hyprland
-#    session has booted.
+#    hardware, ufw/clamav-freshclam/bluetooth live, SDDM enabled with
+#    the theme's ConfigFile resolving inside the clone (rollback-
+#    snapshot probe stays sudo-gated), every theme preset carrying all
+#    eight pywal formats, and the snapshot tooling live (snapper timers
+#    on btrfs, cronie otherwise — same branch 45-snapshots.sh took).
+#    Best run after one Hyprland session has booted.
 ./scripts/50-verify.sh
 ```
 
