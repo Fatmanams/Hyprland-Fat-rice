@@ -129,7 +129,17 @@ if [[ -f "$HOME/.config/vdirsyncer/config" ]]; then
 else
     echo "    vdirsyncer config not present; copy config.example after adding OAuth credentials."
 fi
-chmod 600 "$HOME/.config/msmtp/config" "$HOME/.config/isync/mbsyncrc"
+# chmod each one only when it exists: neither file is guaranteed (the
+# example-copy loop above may have left both absent — no personalized
+# copy, no .example), and an unconditional chmod would strand the
+# deploy after the configs are in place but before they are recorded.
+for private in "msmtp/config" "isync/mbsyncrc"; do
+    if [[ -f "$HOME/.config/$private" ]]; then
+        chmod 600 "$HOME/.config/$private"
+    else
+        echo "    ~/.config/$private not present — skipping chmod 600"
+    fi
+done
 
 # Zed follows the palette through a symlinked custom theme: wal renders
 # config/wal/templates/colors-zed.json into ~/.cache/wal/colors-zed.json,
@@ -142,15 +152,38 @@ ln -sf "$HOME/.cache/wal/colors-zed.json" "$HOME/.config/zed/themes/pywal.json"
 echo "==> Generating first pywal palette from wallpaper (if set)"
 WALLPAPER="$HOME/.config/hypr/wallpaper.jpg"
 chmod +x "$HOME/.config/hypr/switch-theme.sh"
-if [[ -f "$WALLPAPER" ]]; then
-    wal -i "$WALLPAPER" -q
-    echo "    wal ran. colors at ~/.cache/wal/colors.sh"
+# wal (python-pywal16, built by 10-aur.sh) may legitimately be absent
+# — the user can decline the build at 10-aur's review — and a present
+# wal can still fail (corrupt image, broken user template). Neither
+# may strand the deploy after the config copy but before
+# rice_env_write_deployed, or re-fail inside 60-update's automatic
+# rollback: capture wal's exit status instead of letting set -e kill
+# the script, and degrade to the preset seed below.
+palette_ok=0
+if [[ -f "$WALLPAPER" ]] && command -v wal >/dev/null 2>&1; then
+    wal_rc=0
+    wal -i "$WALLPAPER" -q || wal_rc=$?
+    if [[ $wal_rc -eq 0 ]]; then
+        echo "    wal ran. colors at ~/.cache/wal/colors.sh"
+        palette_ok=1
+    else
+        echo "    wal -i failed (rc=$wal_rc) — seeding mocha preset instead; fix the wallpaper/pywal install, then rerun wal -i"
+    fi
 else
-    echo "    no wallpaper at $WALLPAPER — hypr/wallpaper.jpg is a TODO."
-    echo "    drop a jpg there and run: wal -i ~/.config/hypr/wallpaper.jpg"
-    # No wallpaper yet: seed the default preset so waybar/rofi/nvim have
-    # colors on first boot. switch-theme.sh writes into ~/.cache/wal/;
-    # running `wal -i` later switches back to wallpaper mode.
+    if [[ -f "$WALLPAPER" ]]; then
+        echo "    wal not installed — skipping wallpaper palette, seeding mocha preset (install python-pywal16 via 10-aur.sh, then run wal -i for wallpaper mode)"
+    else
+        echo "    no wallpaper at $WALLPAPER — hypr/wallpaper.jpg is a TODO."
+        echo "    drop a jpg there and run: wal -i ~/.config/hypr/wallpaper.jpg"
+    fi
+fi
+# Palette missing or unusable (no wallpaper, no wal binary, or wal
+# failed mid-write): seed the default preset so waybar/rofi/nvim have
+# colors on first boot and any partial ~/.cache/wal files a failed wal
+# may have left get overwritten. switch-theme.sh needs no wal binary —
+# it only copies preset files into ~/.cache/wal/; running `wal -i`
+# later switches back to wallpaper mode.
+if [[ $palette_ok -eq 0 ]]; then
     "$HOME/.config/hypr/switch-theme.sh" mocha
 fi
 "$HOME/.config/ox/ox-theme.sh"
