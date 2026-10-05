@@ -238,8 +238,9 @@ There is no test suite. What verifying exists lives in ONE manifest,
 CI (`.github/workflows/lint.yml`), the `60-update.sh` lint gate, and
 the `.zed/tasks.json` tasks all call that script; no caller re-declares
 a list. CI runs it strict (a missing tool is a red build); the gate and
-local runs use `--skip-missing` (each absent tool prints a SKIP line —
-loud, never silent).
+local runs use `--skip-missing` (each absent tool prints a "SKIPPED
+(tool absent)" line at its check and again in the summary — loud,
+never silent).
 
 1. **The full suite** (what CI runs, one named step per check):
    ```

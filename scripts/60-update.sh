@@ -14,9 +14,11 @@
 #   4/8 Advance    — git merge --ff-only origin/<branch> ONLY. A non-ff
 #                    (diverged history) aborts; nothing was deployed yet.
 #   5/8 Lint gate  — the lint manifest CI runs (scripts/lint.sh) on the
-#                    NEW tree; tools this box lacks SKIP loudly here and
-#                    stay enforced in CI. Failure: checkout rolled back,
-#                    exit. Nothing deployed.
+#                    NEW tree; a tool this box lacks is named in a
+#                    "SKIPPED (tool absent)" line — at the check and
+#                    in the lint summary — and stays enforced in CI.
+#                    Failure: checkout rolled back, exit. Nothing
+#                    deployed.
 #   6/8 Apply      — re-run 00 10 20 30 40 45 in order. Scripts take no
 #                    flags; the interactive bits (10-aur's PKGBUILD review)
 #                    STAY interactive, that's deliberate.
@@ -266,11 +268,12 @@ fi
 echo "==> [5/8] Lint gate (scripts/lint.sh --skip-missing)"
 # The manifest owns the file lists: the same script CI runs, invoked on
 # the NEW tree, so coverage travels with the update. The gate runs every
-# check whose tool is present on this box and prints a SKIP line for
-# each missing one (bash -n and the theme-sync check always run; jq,
-# g++, and the shellcheck/emacs/luajit checks join in when installed).
-# A manifest path that doesn't exist fails the gate — coverage must not
-# rot silently.
+# check whose tool is present on this box; a missing tool leaves a
+# "SKIPPED (tool absent)" line at the check and again in the lint
+# summary, so a pass never silently means a check never ran. bash -n
+# and the theme-sync check always run; jq, g++, and the shellcheck,
+# emacs, and luajit checks join in when installed. A manifest path that
+# doesn't exist fails the gate — coverage must not rot silently.
 if (cd "$REPO_ROOT" && bash scripts/lint.sh --skip-missing all); then
     echo "    lint gate passed"
 else
