@@ -26,9 +26,12 @@
 # Modes:
 #   strict (default)   a required tool missing from PATH is a FAIL —
 #                      CI must never lose a check silently
-#   --skip-missing     a missing tool prints a SKIP line and the check
-#                      is not run (the update gate and local runs: run
-#                      what the box has, loudly skip the rest)
+#   --skip-missing     a missing tool prints a "SKIPPED (tool absent)"
+#                      line for its check and lands in the summary's
+#                      skip list; the check is not run (the update gate
+#                      and local runs: run what the box has, loudly
+#                      skip the rest — a pass is never silent about
+#                      what it skipped)
 #
 # A manifest path that doesn't exist is a FAIL in both modes: that is
 # the reverse-drift guard — a rename must update this file in the same
@@ -41,6 +44,7 @@ shopt -s globstar
 
 FAILS=0
 SKIP_MISSING=0
+SKIPPED=()
 
 # ---- the manifest (globs first) --------------------------------------------------
 
@@ -74,7 +78,8 @@ need_tool() {  # need_tool <check> <tool>
         return 0
     fi
     if [[ $SKIP_MISSING -eq 1 ]]; then
-        echo "  SKIP $check: $tool not found — check not run in this pass"
+        SKIPPED+=("$check")
+        echo "==> SKIPPED (tool absent): $check — $tool not in PATH; CI enforces it"
         return 1
     fi
     echo "  FAIL $check: required tool '$tool' not found in PATH" >&2
@@ -242,8 +247,16 @@ for c in "${EXPANDED[@]}"; do
 done
 
 echo
+if [[ ${#SKIPPED[@]} -gt 0 ]]; then
+    echo "==> SKIPPED (tool absent): ${SKIPPED[*]}"
+    echo "    did not run here — CI enforces them on every push"
+fi
 if [[ $FAILS -eq 0 ]]; then
-    echo "==> SUMMARY: all requested checks passed."
+    if [[ ${#SKIPPED[@]} -eq 0 ]]; then
+        echo "==> SUMMARY: all requested checks passed."
+    else
+        echo "==> SUMMARY: all runnable checks passed; skips named above."
+    fi
     exit 0
 fi
 echo "==> SUMMARY: $FAILS check(s) failed — see FAIL lines above."

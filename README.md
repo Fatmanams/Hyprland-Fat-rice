@@ -638,8 +638,10 @@ scripts/61-rollback.sh          # by hand, after any failed update
 4. **Advance** — `git merge --ff-only` only. Diverged history aborts;
    unconsumed.
 5. **Lint gate** — the same lint manifest CI runs (`scripts/lint.sh`)
-   against the new tree; tools the box lacks print a SKIP line and stay
-   enforced in CI. Nothing is deployed before this passes.
+   against the new tree; each tool the box lacks is named in a
+   "SKIPPED (tool absent)" line — at the check and again in the lint
+   summary — and stays enforced in CI, so a green gate never silently
+   means a check never ran. Nothing is deployed before this passes.
 6. **Apply** — re-runs `00-base.sh` → `45-snapshots.sh` in order,
    interactively where they always were.
 7. **Gate** — `hyprctl reload` + `hyprctl configerrors` (skipped with a
