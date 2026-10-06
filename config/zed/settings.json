@@ -1,14 +1,19 @@
-// zed settings. Theme: "Pywal" lives in ~/.config/zed/themes/pywal.json,
-// a symlink into wal's generated ~/.cache/wal/colors-zed.json (presets
-// and `wal -i` both rewrite it; Zed hot-reloads theme files). The
-// catppuccin extension stays installed as the fallback for a cold boot
-// before wal/presets ever ran.
+// zed settings. Theme: "Pywal" lives in the config dir's themes/pywal.json.
+// Linux: a symlink into wal's generated ~/.cache/wal/colors-zed.json
+// (presets and `wal -i` both rewrite it; Zed hot-reloads theme files).
+// Windows: install.ps1 seeds a static copy from the mocha preset
+// (config/hypr/themes/mocha/colors-zed.json) since wal never runs there.
+// The catppuccin extension stays installed as the fallback for a cold
+// boot before wal/presets ever ran.
 {
   "theme": "Pywal",
+  "base_keymap": "VSCode",
   "auto_install_extensions": {
     "catppuccin": true,
     "sql": true,
-    "postgres-language-server": true
+    "postgres-language-server": true,
+    "lua": true,
+    "ruff": true
   },
   "auto_update": true,
   "ui_font_size": 16,
