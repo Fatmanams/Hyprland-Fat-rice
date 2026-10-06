@@ -71,7 +71,7 @@ source is used. The packages this rice does compile use CPU-native flags
 | Code editor      | zed                  | pacman (extra)          | primary $EDITOR + $CODE for python/c/c++/lua/java/rust/json; theme "Pywal" generated from wal (catppuccin ext kept as cold-boot fallback). Was AUR-only, moved upstream — used `scripts/10-aur.sh` before; standalone: `scripts/install-zed.sh` |
 | GUI code editor   | lapce                | pacman (extra)          | optional Rust editor with built-in LSP, terminal, remote development, and Vim mode |
 | Terminal editor   | croft                | upstream cargo install  | optional VS Code-style TUI; no Arch/AUR package, launcher prints the reviewed, version-pinned install command (croft-software 0.1.942) and holds the terminal open so you can read it |
-| Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors, FATS/SUPER mode (F2) |
+| Quick editor     | neovim              | pacman (extra)          | terminal IDE: lazy.nvim plugins (lspconfig / treesitter / cmp / telescope / nvim-tree), pywal-driven colors |
 | Neovim GUI       | neovide              | pacman (extra)          | GPU-accelerated Neovim client; inherits the pywal-driven Neovim palette |
 | Terminal editor  | ox                  | **AUR — makepkg'd**     | lightweight TUI editor; Ox config is generated from the active pywal16 palette; `ox-bin` verified on AUR 2026-09-25 (PKGBUILD review still applies at approve time) |
 | GPU Emacs fork   | neomacs              | **AUR — makepkg'd**     | experimental Rust/wgpu Emacs fork; reuses the existing pywal-driven Emacs config |
@@ -701,12 +701,7 @@ JetBrainsMono Nerd Font buffers, autosave on focus change, format on
 save. The catppuccin extension stays auto-installed purely as the
 cold-boot fallback for before wal first runs.
 
-F2 gets the same modal-toggle contract nvim and Emacs have:
-`config/zed/keymap.json` binds `f2` to `workspace::ToggleVimMode`,
-Zed's native (no-extension) vim mode. `settings.json` leaves `vim_mode`
-unset, so Zed opens in plain editing and F2 flips modal editing on —
-F2 again turns it off. Same default-plain, F2-is-the-alternative
-arrangement as nvim's FATS/SUPER and Emacs's supermode/fats-mode.
+Zed uses the VSCode base keymap with vim mode off.
 
 The Zed setup also enables signature help, code lenses, inlay hints,
 relative line numbers, trailing-whitespace cleanup, final-newline
@@ -783,14 +778,7 @@ between old and new commit first — the same review obligation as an
 AUR PKGBUILD bump. Hard constraints documented in the file header:
 no colorscheme plugins (pywal stays the one source of color and plugin
 UIs link into the same highlight groups), no mason (LSP servers are
-compiled/packaged system installs from `00-base.sh` and `10-aur.sh`),
-and the rice's own UX stays:
-
-F2 toggles two editing personalities in nvim: **fats mode** (the default —
-nvim stays in Insert permanently; `Ctrl-O` is one-shot Normal, `Ctrl-S`
-saves, `Ctrl-Z` undoes, and Ctrl-C/Ctrl-V work via the system clipboard)
-and **supermode** (plain modal vim). The active mode shows in the
-statusline as `FATS`/`SUPER`.
+compiled/packaged system installs from `00-base.sh` and `10-aur.sh`).
 
 **Emacs** is **opt-in** — `00-base.sh`'s last step prompts for it and
 defaults to no. If you accept, it installs `emacs-wayland` (the PGTK
@@ -821,13 +809,6 @@ SPC-leader scheme, which would shadow self-insert here):
 `C-c w` save, `C-c q` kill buffer, `C-c e` dired-jump, `C-c b` switch
 buffer, `C-c n` toggle line numbers.
 
-F2 mirrors nvim's modes with two hand-rolled minor modes (no packages,
-same as the rest of this file): **fats-mode** (the startup default —
-stock Emacs feel with `C-s` save, `C-z` undo, `C-a` select-all) and
-**supermode** (a minimal vim-ish motion layer: `h/j/k/l`, `w`/`b` word
-motion, `i` drops into a self-inserting phase, `<escape>`/`C-g` back to
-motion). The mode line shows `SUPER` / `super/insert` / `FATS`.
-
 If `~/.emacs.d` already exists on your box, Emacs ignores
 `~/.config/emacs/` entirely (XDG precedence rules) — move the old dir
 aside for this config to take effect.
@@ -853,7 +834,6 @@ Bindings:
 | `SUPER + V`        | Open Bitwarden                               |
 | `SUPER + SHIFT + M`| Prompt for a URL in rofi, play it in VLC (YouTube etc. resolved by yt-dlp, Twitch by streamlink — see `config/vlc/vlc-open`) |
 | `SUPER + SHIFT + /`| Browse every Hyprland keybind in rofi ($vars resolved); Enter opens the bind's file:line in `$editor` (repo checkout copy, so the change is tracked) |
-| `F2` (in nvim/emacs) | Toggle fats mode <-> supermode (insert-forever readline style vs. modal/motion); statusbar/mode-line shows the active mode |
 
 
 ### Sudoedit / visudo gotcha
@@ -2906,6 +2886,19 @@ Minor batch, one line each:
 
 ---
 
+## Changelog — FATS/SUPER retirement (all editors on native keymaps)
+
+FATS/SUPER mode and the F2 modal/plain toggle were removed from all
+three editors — nvim (PR #44: stock modal Neovim), Emacs (PR #45:
+stock Emacs editing, `C-c` user binds kept), and Zed (PR #46: VSCode
+base keymap, vim mode off) — so every editor now runs its native
+keymap with no rice-specific editing layer. The F2 row is gone from
+the bindings table and the editor sections above describe the new
+state. Review-pass sections that still mention FATS/SUPER or F2 are
+historical audit records of the repo at the time and stay as-is.
+
+---
+
 ## Tree
 
 ```
@@ -2936,7 +2929,7 @@ linux-rice/
     │   ├── themes/{mocha,gruvbox,tokyonight,osaka-jade}/  pre-generated pywal-format palettes (eight formats each)
     │   └── gpu-env.sh                      NVIDIA/Intel/AMD auto-detect env vars (source from shell rc)
     ├── nvim/
-    │   ├── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven, FATS/SUPER
+    │   ├── init.lua                         single-file nvim IDE: lazy.nvim specs inline, pywal-driven
     │   └── lazy-lock.json                   pinned plugin commits (lazy.nvim-generated, committed)
     ├── emacs/
     │   └── init.el                          opt-in single-file Emacs config; eglot for LSP

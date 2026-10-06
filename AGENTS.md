@@ -147,7 +147,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     ├── nvim/
     │   ├── init.lua            single-file nvim IDE config; lazy.nvim plugin
     │   │                       specs inline (lspconfig/treesitter/cmp/telescope/
-    │   │                       nvim-tree), pywal-driven colors, FATS/SUPER kept
+    │   │                       nvim-tree), pywal-driven colors
     │   └── lazy-lock.json      pinned plugin commits (lazy.nvim-generated,
     │                           committed; see editor plugin rule)
     ├── croft/                  optional terminal editor launcher
@@ -158,7 +158,7 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     │   └── init.el             OPT-IN single-file Emacs config; pywal-driven,
     │                           no package manager; eglot auto-starts via
     │                           prog-mode-hook, core *-ts-mode remaps are
-    │                           guarded by treesit-ready-p, F2 = FATS/SUPER
+    │                           guarded by treesit-ready-p
     ├── waybar/{config,style.css}
     ├── neomutt/                    terminal email client + account examples
     ├── khal/                       terminal calendar viewer
@@ -180,11 +180,10 @@ Every selected source build goes through `scripts/10-aur.sh`'s
     │                          symlinked by 30-dotfiles.sh into
     │                          ~/.config/zed/themes/pywal.json) + Nerd font,
     │                          diagnostics, inlay hints, project panel,
-    │                          terminal, and save behavior;
-    │                          vim_mode left unset (off) — F2 toggles it
-    ├── zed/keymap.json        F2 -> workspace::ToggleVimMode (native vim
-                               mode, no extension), matching nvim/Emacs's
-                               FATS/SUPER contract
+    │                          terminal, and save behavior; base_keymap
+    │                          VSCode; vim_mode left unset (off)
+    ├── zed/keymap.json        custom task/terminal/format binds layered
+                               on the VSCode base keymap (ctrl-alt-*)
     ├── vlc/vlc-open                 resolve-then-play URL wrapper (yt-dlp / streamlink -> VLC; SUPER+SHIFT+M)
     ├── vlc/vlcrc                    minimal; decoding + snapshot dir left on VLC's defaults
     ├── wal/templates/colors-rofi.rasi   custom pywal user template -> ~/.cache/wal/colors-rofi.rasi
@@ -405,8 +404,8 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
   (pywal owns color — plugin UIs link into the wal-driven highlight
   groups), **no mason** (LSP servers are system packages from
   `00-base.sh` / `10-aur.sh`, language servers are compiled/packaged,
-  not mason's generic prebuilt binaries), and FATS/SUPER mode (F2) +
-  the hand-rolled statusline stay. Versions are pinned, not floating:
+  not mason's generic prebuilt binaries), and the hand-rolled
+  statusline stays. Versions are pinned, not floating:
   the bootstrap clones lazy.nvim and checks out a hardcoded commit SHA
   (no `--branch=stable`), and `config/nvim/lazy-lock.json` is committed
   — `30-dotfiles.sh`'s blanket config/ copy lands it at
@@ -424,10 +423,9 @@ The previous blanket "no plugins anywhere" is lifted for nvim only:
 - **Zed** — extensions only as cold-boot theme fallback (catppuccin);
   the real palette is the wal-generated "Pywal" theme (palette contract
   item 7). Don't start an extension stack. Vim mode is native (no
-  extension): `settings.json` leaves `vim_mode` unset (default off) and
-  `keymap.json` binds F2 to `workspace::ToggleVimMode` — same F2
-  modal/plain toggle contract as nvim's FATS/SUPER and Emacs's
-  supermode/fats-mode.
+  extension): `settings.json` selects the VSCode base keymap and
+  leaves `vim_mode` unset (default off) — there is no modal/plain
+  toggle.
 
 ---
 
