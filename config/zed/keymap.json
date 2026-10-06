@@ -1,11 +1,7 @@
-// Zed keymap. F2 mirrors nvim/Emacs's FATS/SUPER contract: Zed opens in
-// plain editing (settings.json leaves vim_mode unset = off) and F2 flips
-// the native vim mode on/off at runtime (workspace::ToggleVimMode is a
-// built-in action — no extension needed, per zed.dev/docs/vim).
+// Custom task/terminal/format binds layered on the VSCode base keymap.
 [
   {
     "bindings": {
-      "f2": "workspace::ToggleVimMode",
       "ctrl-alt-b": "task::Spawn",
       "ctrl-alt-r": "task::Rerun",
       "ctrl-alt-t": "terminal_panel::ToggleFocus",
