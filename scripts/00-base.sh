@@ -3,8 +3,11 @@
 #
 # What this does:
 #   1. Enables [multilib] (needed for lib32-mangohud / Steam's wine deps).
-#   2. Sets MAKEFLAGS to -j$(nproc) and enables ccache in /etc/makepkg.conf
-#      — affects AUR builds done later by 10-aur.sh.
+#   2. Configures /etc/makepkg.conf: MAKEFLAGS -j$(nproc), ccache in
+#      BUILDENV, CFLAGS/CXXFLAGS -march=native; RUSTFLAGS goes into a
+#      /etc/makepkg.conf.d/zz-rice.conf drop-in (pacman's own rust.conf
+#      drop-in is sourced after the main file and overrides anything
+#      appended there) — affects AUR builds done later by 10-aur.sh.
 #   3. Installs the official-repo portion of the rice from pacman.
 #   4. Installs the shared language-server stack. These are plain
 #      binaries on $PATH, NOT editor plugins: Zed discovers them itself,
@@ -55,47 +58,15 @@ fi
 sudo pacman -Syu --noconfirm
 
 echo "==> [2/8] Configuring /etc/makepkg.conf for parallelism + ccache + native tuning"
-MAKEPKG=/etc/makepkg.conf
-if ! grep -q '^MAKEFLAGS="-j' "$MAKEPKG"; then
-    sudo sed -i "s|^#MAKEFLAGS=\"-j2\"|MAKEFLAGS=\"-j$(nproc)\"|" "$MAKEPKG"
-    echo "    MAKEFLAGS set to -j$(nproc)"
-else
-    echo "    MAKEFLAGS already set."
-fi
 if ! command -v ccache >/dev/null 2>&1; then
     sudo pacman -S --noconfirm --needed ccache
 fi
-if grep -q '^BUILDENV=.*!ccache' "$MAKEPKG"; then
-    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
-elif ! grep -q '^BUILDENV=' "$MAKEPKG"; then
-    echo 'BUILDENV=(!distcc !color ccache check !sign)' | sudo tee -a "$MAKEPKG" >/dev/null
-elif ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
-    sudo sed -i 's|^BUILDENV=.*|BUILDENV=(!distcc !color ccache check !sign)|' "$MAKEPKG"
-fi
-# ccache must now appear enabled on the BUILDENV line. Match the disabled
-# token explicitly — \bccache\b alone also matches inside "!ccache".
-if grep -q '^BUILDENV=.*!ccache' "$MAKEPKG" \
-        || ! grep -q '^BUILDENV=.*\bccache\b' "$MAKEPKG"; then
-    echo "    ERROR: ccache is not enabled in BUILDENV after configuration." >&2
-    exit 1
-fi
-echo "    ccache enabled in BUILDENV"
-
-# Everything the rice actually compiles (the AUR set in 10-aur.sh) gets
-# CPU-native flags — prefer compiled-and-native for what's built anyway.
-# pacman binaries stay upstream generic x86-64 (rebuilding those would
-# be a source distro, not a rice). -march=native implies -mtune=native;
-# O2 stays (O3 here is all cost, no measurable win).
-if ! grep -q -- '-march=native' "$MAKEPKG"; then
-    sudo sed -i -E 's|^((C|CXX)FLAGS=")-march=x86-64 -mtune=generic|\1-march=native|' "$MAKEPKG"
-    echo "    CFLAGS/CXXFLAGS retargeted to -march=native (AUR builds)"
-fi
-if ! grep -q '^RUSTFLAGS=' "$MAKEPKG"; then
-    # Stock makepkg.conf only ships a commented #RUSTFLAGS= line;
-    # makepkg sources the file, so a trailing assignment wins.
-    echo 'RUSTFLAGS="-C target-cpu=native"' | sudo tee -a "$MAKEPKG" >/dev/null
-    echo "    RUSTFLAGS set to -C target-cpu=native (AUR builds)"
-fi
+# The makepkg.conf edits live in lib/makepkg-conf.sh — a function taking
+# the file path, so it can be exercised on a copy — and every edit is
+# re-read and verified there; a failed check exits 1 naming the manual fix.
+# shellcheck source=scripts/lib/makepkg-conf.sh
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/makepkg-conf.sh"
+rice_makepkg_configure /etc/makepkg.conf
 
 echo "==> [3/9] Installing rice packages from official repos"
 sudo pacman -S --needed --noconfirm \

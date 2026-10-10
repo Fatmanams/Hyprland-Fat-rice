@@ -9,7 +9,11 @@
 #                    RICE_SNAPSHOT/RICE_VERIFY finalized by 60/61 after gates)
 #   rollback.env   — where to return to (written by 60-update.sh BEFORE the
 #                    checkout advances; consumed by 61-rollback.sh, which is
-#                    standalone-usable on its own too)
+#                    standalone-usable on its own too). Its
+#                    RICE_CONFIG_BACKUP is only ever set to a dir whose
+#                    .rice-backup-complete marker exists (the format
+#                    scripts/lib/rice-backup.sh owns); empty means nothing
+#                    rewrote ~/.config that run.
 #   update.log     — one line per deploy, incl. branch (a real history)
 #   update.lock    — flock target serializing update runs
 #

@@ -407,7 +407,8 @@ chmod +x scripts/*.sh
 
 # 1. Official-repo install — also configures /etc/makepkg.conf with
 #    MAKEFLAGS=-j$(nproc), ccache in BUILDENV, and CPU-native
-#    CFLAGS/CXXFLAGS/RUSTFLAGS for everything the rice compiles; enables
+#    CFLAGS/CXXFLAGS/RUSTFLAGS (Rust via a zz-rice.conf drop-in) for
+#    everything the rice compiles; enables
 #    [multilib], runs xdg-user-dirs-update (so ~/Pictures etc. exist —
 #    VLC's default snapshot dir is the Pictures dir), enables
 #    bluetooth.service, sets up the ufw firewall baseline
@@ -623,6 +624,8 @@ record:
 scripts/60-update.sh            # update from origin/main + redeploy
 scripts/60-update.sh --dry-run  # show what would land, change nothing
 scripts/61-rollback.sh          # by hand, after any failed update
+scripts/61-rollback.sh --backup ~/.config-backup-<TS>   # config-only
+                                 # restore, works without update state
 ```
 
 `60-update.sh` is a phased pipeline with a hard rollback gate:
@@ -649,12 +652,41 @@ scripts/61-rollback.sh          # by hand, after any failed update
 8. **Report** — old → new version, gates, snapshot id, state file path.
 
 Any phase-6/7 failure calls `scripts/61-rollback.sh` automatically:
-check the repo out back where it was, restore `~/.config` from the
-pre-update backup, re-run `30-dotfiles.sh` so binary artifacts
-(keybind-menu's `-DRICE_REPO` build) match the restored source,
-re-verify. Rollback never touches packages — if the failing phase was a
-package/system one (00/10/20/40/45), the report prints the snapshot
-restore command for your tool and leaves running it to you.
+check the repo out back where it was, restore the rice-owned files in
+`~/.config` from the pre-update backup, re-run `30-dotfiles.sh` so
+binary artifacts (keybind-menu's `-DRICE_REPO` build) match the
+restored source, re-verify. Rollback never touches packages — if the
+failing phase was a package/system one (00/10/20/40/45), the report
+prints the snapshot restore command for your tool and leaves running
+it to you.
+
+**Config backups are scoped to what the rice deploys.** A deploy backs
+up only the files the repo's `config/` tree provides (minus
+`config/applications/`, which never belongs in `~/.config`): each
+rice-owned path is copied into the backup and recorded `present`, or
+recorded `absent` when nothing was there yet, in the backup's
+`MANIFEST`; the directory only becomes restorable once its
+`.rice-backup-complete` marker exists, written after the whole copy
+succeeded. Browser profiles, wallpapers, other apps' state: never
+copied, never restored, never deleted. On rollback the `MANIFEST` is
+replayed line by line — `present` files are copied back, `absent`
+paths are deleted, and no other path in `~/.config` is touched (no
+`rsync --delete` tree rewind). `60-update.sh` picks the backup
+directory before the deploy phases and keeps it recorded in
+`rollback.env` only when the marker exists: a run that fails before
+`30-dotfiles.sh` finishes its backup records an empty path, and
+rollback then skips the config step because nothing had rewritten
+`~/.config` yet — a stale backup from an older deploy is never handed
+to rollback, and neither script ever guesses at "the newest-looking"
+`~/.config-backup-*`. Standalone `61-rollback.sh` takes
+`--backup <dir>` (config-only restore when no `rollback.env` exists)
+or reads `rollback.env`, and refuses any backup without the marker.
+Old `~/.config-backup-*` dirs are pruned to the newest five after each
+deploy, never one still referenced by `deployed.env` or
+`rollback.env`. (One-time transition: the update that first brings
+this behavior still runs the pre-fix updater from its re-exec copy, so
+that single run takes a legacy full-`~/.config` backup — the new
+pipeline takes over from the next update on.)
 
 **Branch tracking.** `scripts/60-update.sh --branch <name>` tracks
 `origin/<name>` through the same lint → deploy → gate → rollback
@@ -920,10 +952,15 @@ implementation choice rather than an additional policy requirement.
 
 - `/etc/makepkg.conf`:`MAKEFLAGS="-j$(nproc)"`
 - `/etc/makepkg.conf`: `CFLAGS`/`CXXFLAGS` retargeted to
-  `-march=native`, plus `RUSTFLAGS="-C target-cpu=native"` — everything
+  `-march=native`, plus a `/etc/makepkg.conf.d/zz-rice.conf` drop-in
+  appending `-C target-cpu=native` to `RUSTFLAGS` (pacman's own
+  rust.conf drop-in is sourced after the main file, so a value
+  appended to the main file would be overridden) — everything
   the rice compiles (the AUR set) builds CPU-native. pacman's own
   binaries stay upstream-generic x86-64; source-rebuilding all of Arch
   would be a full source distro, which this rice is not.
+  Remove the drop-in to undo the Rust tuning; re-running
+  `scripts/00-base.sh` restores it.
 - `/etc/makepkg.conf`:`BUILDENV=(... ccache ...)` — `ccache` from
   official repos; pays for itself against the AUR build queue
 - Local repo at `/var/cache/pacman/localrepo` (`localrepo`,

@@ -21,7 +21,9 @@
 #                    deployed.
 #   6/8 Apply      — re-run 00 10 20 30 40 45 in order. Scripts take no
 #                    flags; the interactive bits (10-aur's PKGBUILD review)
-#                    STAY interactive, that's deliberate.
+#                    STAY interactive, that's deliberate. The ~/.config
+#                    backup dir 30 writes is picked just above, exported
+#                    as RICE_BACKUP_DIR, and marker-verified below.
 #   7/8 Gate       — hyprctl reload exit status, then hyprctl configerrors
 #                    (both skipped with a note outside a Hyprland session),
 #                    then scripts/50-verify.sh's exit code.
@@ -75,6 +77,8 @@ trap 'rm -rf "$RICE_RUNNING_FROM"' EXIT
 
 # shellcheck source=scripts/lib/rice-version.sh
 . "$RICE_RUNNING_FROM/scripts/lib/rice-version.sh"
+# shellcheck source=scripts/lib/rice-backup.sh
+. "$RICE_RUNNING_FROM/scripts/lib/rice-backup.sh"
 RUN61="$RICE_RUNNING_FROM/scripts/61-rollback.sh"
 ENV_FILE=$(rice_env_file)
 RB_FILE=$(rice_rollback_file)
@@ -286,6 +290,17 @@ fi
 
 # ---- 6/8 apply: re-run the install sequence -------------------------------------
 
+# Pick the backup dir 30-dotfiles.sh will write BEFORE any phase runs and
+# record it in rollback.env now: a run that dies in 00/10/20 — or inside
+# 30's backup step — can then never be handed a stale path from the
+# previous deploy's deployed.env. The marker check after the phases
+# demotes it to empty when 30 never finished the backup, and an empty
+# RICE_CONFIG_BACKUP makes rollback skip the config restore (nothing in
+# ~/.config had been touched).
+RICE_BACKUP_DIR="$HOME/.config-backup-$(date +%Y%m%d-%H%M%S)"
+export RICE_BACKUP_DIR
+rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "$RICE_BACKUP_DIR"
+
 FAILED_PHASE=none
 for phase in 00-base 10-aur 20-sddm 30-dotfiles 40-gaming 45-snapshots; do
     echo "==> [6/8] deploy phase: $phase"
@@ -297,12 +312,16 @@ for phase in 00-base 10-aur 20-sddm 30-dotfiles 40-gaming 45-snapshots; do
         break
     fi
 done
-# Whatever happened, point rollback at the newest deploy backup 30 made this
-# run (the pre-update ~/.config); a failed run before 30 keeps the previous
-# deployed.env's path, which is still a sane state to return to.
-upd_backup=$(rice_env_get "$ENV_FILE" RICE_CONFIG_BACKUP)
-[[ -n $upd_backup ]] || upd_backup=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1 || true)
-rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "${upd_backup:-}"
+# Keep the recorded backup only when 30-dotfiles.sh finished writing it
+# (the completion marker exists). Without the marker nothing in ~/.config
+# was rewritten this run; leave RICE_CONFIG_BACKUP empty and rollback
+# skips the config restore instead of rewinding to some older deploy's
+# backup.
+if [[ -f $RICE_BACKUP_DIR/$RICE_BACKUP_MARKER ]]; then
+    rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP "$RICE_BACKUP_DIR"
+else
+    rice_env_set "$RB_FILE" RICE_CONFIG_BACKUP ""
+fi
 
 # ---- 7/8 gate --------------------------------------------------------------------
 
