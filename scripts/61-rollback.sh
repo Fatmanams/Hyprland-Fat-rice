@@ -3,14 +3,27 @@
 # failed update. Called automatically by 60-update.sh on any gate failure;
 # also runnable standalone any time a rollback.env exists.
 #
+# Usage: 61-rollback.sh [--backup <dir>]
+#   --backup overrides the config backup to restore from (marker-checked
+#   like any other). Without a rollback.env it means a config-ONLY
+#   restore: replay that backup's manifest into ~/.config and stop —
+#   no git restore, no redeploy, no gates.
+#
 # Scope, in order:
 #   1. git: restore the checkout to RICE_PREV_BRANCH@RICE_PREV_COMMIT.
 #      Named checkout when the branch still points where the update started;
 #      retract the branch when its tip is the failed update's own ff-advance;
 #      DETACHED checkout (with a loud note) when someone else moved the
 #      branch — no force-reset of refs we don't own, ever.
-#   2. ~/.config: restore from RICE_CONFIG_BACKUP (the backup 30-dotfiles.sh
-#      took at deploy time, i.e. the pre-update state).
+#   2. ~/.config: replay the MANIFEST of the backup RICE_CONFIG_BACKUP
+#      points at (the one 30-dotfiles.sh took before deploying, i.e.
+#      the pre-update state) — and nothing else: "present" entries are
+#      copied back, "absent" entries are deleted, one rice-owned file
+#      at a time. There is no "newest ~/.config-backup-*" guessing and
+#      no rsync --delete tree rewind; a backup without the
+#      .rice-backup-complete marker (incomplete or stale) is refused.
+#      An empty RICE_CONFIG_BACKUP means nothing had rewritten
+#      ~/.config this run and the step is skipped.
 #   3. Re-run 30-dotfiles.sh so binary artifacts (keybind-menu's -DRICE_REPO
 #      build) match the restored source.
 #   4. Re-gate: hyprctl reload + configerrors, then 50-verify.sh, and report
@@ -20,8 +33,9 @@
 # 45, the report says so loudly and prints the snapshot restore command for
 # the detected tool; it does NOT run it.
 #
-# Exit codes: 0 rollback complete + verified / 2 no rollback state found /
-# 3 rollback itself failed (report tells you to use the snapshot or Plasma).
+# Exit codes: 0 rollback complete + verified / 2 no rollback state found
+# and no --backup given / 3 rollback itself failed (report tells you to
+# use the snapshot or Plasma).
 
 set -euo pipefail
 
@@ -48,14 +62,52 @@ trap 'rm -rf "$RICE_RUNNING_FROM"' EXIT
 
 # shellcheck source=scripts/lib/rice-version.sh
 . "$RICE_RUNNING_FROM/scripts/lib/rice-version.sh"
+# shellcheck source=scripts/lib/rice-backup.sh
+. "$RICE_RUNNING_FROM/scripts/lib/rice-backup.sh"
+
+# 60-update.sh exports RICE_BACKUP_DIR (plus its re-exec marker) for its
+# deploy phases; when this script is spawned by an in-flight 60, the
+# step-3 re-deploy below must take its own fresh standalone-style
+# backup instead of overwriting the one this rollback restores from.
+unset RICE_BACKUP_DIR RICE_UPDATE_REEXEC
 
 RB_FILE=$(rice_rollback_file)
 ENV_FILE=$(rice_env_file)
 
+# ---- args -----------------------------------------------------------------------
+
+BACKUP_OVERRIDE=
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --backup)
+            [[ -n ${2:-} ]] || { echo "--backup needs a directory argument" >&2; exit 2; }
+            BACKUP_OVERRIDE=$2; shift 2 ;;
+        -h|--help)
+            printf 'usage: %s [--backup <dir>]\n' "$0"
+            exit 0 ;;
+        *) echo "unknown argument: $1 (try --help)" >&2; exit 2 ;;
+    esac
+done
+
 if [[ ! -f $RB_FILE ]]; then
+    if [[ -n $BACKUP_OVERRIDE ]]; then
+        # Config-only restore: no recorded update state, so no git restore
+        # and no redeploy — just replay the named backup's manifest.
+        echo "==> Config-only restore (no $RB_FILE — git checkout untouched)"
+        if rice_restore_config "$BACKUP_OVERRIDE"; then
+            echo "==> Rice-owned files restored from $BACKUP_OVERRIDE."
+            echo "    Re-run scripts/30-dotfiles.sh yourself once the"
+            echo "    checkout holds the tree you want deployed."
+            exit 0
+        fi
+        echo "==> Config-only restore FAILED — see the errors above." >&2
+        exit 3
+    fi
     echo "61-rollback: no $RB_FILE — nothing recorded to roll back to." >&2
     echo "If the system is broken anyway: log in via the Plasma session in" >&2
     echo "SDDM and restore the snapshot shown by 'snapper list' / Timeshift." >&2
+    echo "To restore rice-owned configs without update state:" >&2
+    echo "  61-rollback.sh --backup <~/.config-backup-YYYYmmdd-HHMMSS>" >&2
     exit 2
 fi
 
@@ -66,7 +118,11 @@ fi
 FAILED_PHASE=${RICE_FAILED_PHASE:-manual}
 SNAPSHOT=${RICE_SNAPSHOT:-none}
 BACKUP=${RICE_CONFIG_BACKUP:-}
-[[ -n $BACKUP && -d $BACKUP ]] || BACKUP=$(ls -1dt "$HOME"/.config-backup-* 2>/dev/null | head -n 1 || true)
+# An explicit --backup wins over what the update recorded; either way the
+# marker check inside rice_restore_config decides if it is restorable.
+# No "newest ~/.config-backup-*" fallback exists: a backup that was not
+# recorded (or was recorded but never completed) is not silently guessed.
+[[ -z $BACKUP_OVERRIDE ]] || BACKUP=$BACKUP_OVERRIDE
 
 echo "==> Rolling back to ${RICE_PREV_BRANCH}@${RICE_PREV_COMMIT:0:12}"
 echo "    failed phase: $FAILED_PHASE"
@@ -85,22 +141,18 @@ fi
 # ---- 2. ~/.config ------------------------------------------------------------
 
 echo "==> [2/4] Restoring ~/.config"
-if [[ -n $BACKUP && -d $BACKUP ]]; then
-    # rsync if available for --delete parity, else plain cp -a.
-    if command -v rsync >/dev/null 2>&1; then
-        rsync -a --delete "$BACKUP/" "$HOME/.config/" || rollback_failed=1
+if [[ -n $BACKUP ]]; then
+    if rice_restore_config "$BACKUP"; then
+        echo "    rice-owned files restored from $BACKUP (manifest replay;"
+        echo "    everything else in ~/.config untouched)"
     else
-        echo "    !! rsync is not installed — restoring with cp -a, which" >&2
-        echo "    !! is NOT --delete-complete: files the failed update added" >&2
-        echo "    !! under ~/.config survive this restore. rsync is in" >&2
-        echo "    !! 00-base.sh's package list — install it for exact restores." >&2
-        cp -a "$BACKUP/." "$HOME/.config/" || rollback_failed=1
+        echo "    config restore FAILED (see the errors above)" >&2
+        rollback_failed=1
     fi
-    echo "    restored from $BACKUP"
 else
-    echo "    note: RICE_CONFIG_BACKUP unset — nothing deployed this run had" >&2
-    echo "    rewritten ~/.config yet (or it was a lint-gate failure)." >&2
-    echo "    Skipping the config restore step."
+    echo "    note: RICE_CONFIG_BACKUP is empty — 30-dotfiles.sh never" >&2
+    echo "    finished a backup this run, so nothing in ~/.config had" >&2
+    echo "    been rewritten. Skipping the config restore step." >&2
 fi
 
 # ---- 3. rebuild from restored source ------------------------------------------

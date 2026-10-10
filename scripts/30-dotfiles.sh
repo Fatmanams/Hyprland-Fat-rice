@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # 30-dotfiles.sh — install the rice's dotfile tree from this repo into ~/.config.
 #
-# No clobbering without backup. Existing files get moved into
-# ~/.config-backup/<TS>/ first, then the new configs layered on.
+# No clobbering without backup. The rice-owned files — exactly what
+# this repo's config/ tree deploys, minus config/applications/ — are
+# copied into ~/.config-backup-<TS>/ with a MANIFEST and a completion
+# marker before anything is laid down; 61-rollback.sh replays that
+# manifest and never touches the rest of ~/.config.
 #
 # Doesn't run any daemons — just lays files down. After this, see the
 # README for the post-install session-start procedure.
@@ -17,17 +20,37 @@ fi
 REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
 CFG_SRC="$REPO_ROOT/config"
 TS=$(date +%Y%m%d-%H%M%S)
-BAK="$HOME/.config-backup-$TS"
+# 60-update.sh exports RICE_BACKUP_DIR before its deploy phases so the
+# dir it records in rollback.env is the one THIS run writes, even if
+# this script dies midway; standalone deploys just use the timestamp.
+BAK="${RICE_BACKUP_DIR:-$HOME/.config-backup-$TS}"
 
 if [[ ! -d "$CFG_SRC" ]]; then
     echo "Expected $CFG_SRC to exist — was README not followed?"
     exit 1
 fi
 
-echo "==> Backing up current ~/.config to $BAK"
-mkdir -p "$BAK"
-if [[ -d "$HOME/.config" ]]; then
-    cp -a "$HOME/.config/." "$BAK/"
+# shellcheck source=scripts/lib/rice-backup.sh
+. "$REPO_ROOT/scripts/lib/rice-backup.sh"
+
+echo "==> Backing up ~/.config to $BAK"
+# Backup handshake with the update pipeline: a 60-update.sh that knows
+# the manifest format exports RICE_BACKUP_DIR before its deploy phases,
+# and its 61-rollback.sh replays MANIFEST + checks the completion
+# marker. RICE_UPDATE_REEXEC set with RICE_BACKUP_DIR unset means a
+# PRE-manifest 60 is running this deploy from its re-exec copy — its
+# rollback still rsyncs a whole-~/.config mirror, so feed it one for
+# exactly that transition run; the next update runs the new pipeline
+# end to end. Standalone runs always take the manifest backup.
+if [[ -n ${RICE_UPDATE_REEXEC:-} && -z ${RICE_BACKUP_DIR:-} ]]; then
+    echo "    legacy full-copy mode for the in-flight pre-manifest updater"
+    mkdir -p "$BAK"
+    if [[ -d "$HOME/.config" ]]; then
+        cp -a "$HOME/.config/." "$BAK/"
+    fi
+else
+    echo "    rice-owned files only (manifest backup)"
+    rice_backup_config "$REPO_ROOT" "$BAK"
 fi
 
 echo "==> Copying rice configs into ~/.config"
@@ -76,8 +99,7 @@ done
 # config/applications/ only exists as the source for the .desktop install
 # below — it does NOT belong under ~/.config/ (nothing reads
 # ~/.config/applications/). Remove the stray copy the blanket cp made;
-# the real copy lands in ~/.local/share/applications/. Anything removed
-# here is recoverable from the $BAK backup taken above.
+# the real copy lands in ~/.local/share/applications/.
 rm -rf "$HOME/.config/applications"
 
 # Hyprland's `source = ~/.config/hypr/keybinds-extra.conf` line cannot
@@ -196,6 +218,11 @@ fi
 # shellcheck source=scripts/lib/rice-version.sh
 . "$REPO_ROOT/scripts/lib/rice-version.sh"
 rice_env_write_deployed "$REPO_ROOT" "$BAK"
+
+# Cap backup accumulation: keep the newest five ~/.config-backup-* dirs,
+# never the one just recorded in deployed.env above or one an in-flight
+# update still holds in rollback.env as its restore ticket.
+rice_backup_prune 5
 
 echo
 echo "==> Next steps:"
