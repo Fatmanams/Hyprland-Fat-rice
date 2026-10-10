@@ -407,7 +407,8 @@ chmod +x scripts/*.sh
 
 # 1. Official-repo install — also configures /etc/makepkg.conf with
 #    MAKEFLAGS=-j$(nproc), ccache in BUILDENV, and CPU-native
-#    CFLAGS/CXXFLAGS/RUSTFLAGS for everything the rice compiles; enables
+#    CFLAGS/CXXFLAGS/RUSTFLAGS (Rust via a zz-rice.conf drop-in) for
+#    everything the rice compiles; enables
 #    [multilib], runs xdg-user-dirs-update (so ~/Pictures etc. exist —
 #    VLC's default snapshot dir is the Pictures dir), enables
 #    bluetooth.service, sets up the ufw firewall baseline
@@ -920,10 +921,15 @@ implementation choice rather than an additional policy requirement.
 
 - `/etc/makepkg.conf`:`MAKEFLAGS="-j$(nproc)"`
 - `/etc/makepkg.conf`: `CFLAGS`/`CXXFLAGS` retargeted to
-  `-march=native`, plus `RUSTFLAGS="-C target-cpu=native"` — everything
+  `-march=native`, plus a `/etc/makepkg.conf.d/zz-rice.conf` drop-in
+  appending `-C target-cpu=native` to `RUSTFLAGS` (pacman's own
+  rust.conf drop-in is sourced after the main file, so a value
+  appended to the main file would be overridden) — everything
   the rice compiles (the AUR set) builds CPU-native. pacman's own
   binaries stay upstream-generic x86-64; source-rebuilding all of Arch
   would be a full source distro, which this rice is not.
+  Remove the drop-in to undo the Rust tuning; re-running
+  `scripts/00-base.sh` restores it.
 - `/etc/makepkg.conf`:`BUILDENV=(... ccache ...)` — `ccache` from
   official repos; pays for itself against the AUR build queue
 - Local repo at `/var/cache/pacman/localrepo` (`localrepo`,
