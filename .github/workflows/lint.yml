@@ -50,3 +50,10 @@ jobs:
       # -Werror locks in the currently warning-free compile.
       - name: keybind-menu.cpp compiles clean (g++ -Werror)
         run: bash scripts/lint.sh cpp
+
+      # Hyprland key names are case-insensitive and it does not
+      # de-duplicate: two binds on the same (modifiers, key) both fire
+      # on one keypress. The awk scan expands $vars, normalizes
+      # modifiers/keys, and fails naming both file:line.
+      - name: hypr keybind duplicate scan (binds)
+        run: bash scripts/lint.sh binds

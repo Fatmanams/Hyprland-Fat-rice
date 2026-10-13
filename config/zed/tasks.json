@@ -1,0 +1,106 @@
+// Global Zed tasks (Windows: %APPDATA%\Zed\tasks.json via install.ps1;
+// Linux: ~/.config/zed/tasks.json via 30-dotfiles.sh's blanket copy).
+// Commands use the args-array form so paths with spaces survive, and
+// Zed substitutes the $ZED_* variables before the shell ever runs. All
+// commands resolve from PATH -- the Windows installer installs every
+// one of them. On Linux the rice installs python, luajit, cargo and
+// cmake; stylua/ruff/luacheck are extras the Windows box gets, so those
+// three tasks error loudly there until the tool is installed by hand.
+[
+  {
+    "label": "Python: run file",
+    "command": "python",
+    "args": ["$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "Lua: run file (luajit)",
+    "command": "luajit",
+    "args": ["$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "Rust: cargo run",
+    "command": "cargo",
+    "args": ["run"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "Rust: cargo test",
+    "command": "cargo",
+    "args": ["test"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "CMake: configure",
+    "command": "cmake",
+    "args": ["-S", ".", "-B", "build"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "CMake: build (Debug)",
+    "command": "cmake",
+    "args": ["--build", "build", "--config", "Debug"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "CMake: clean",
+    "command": "cmake",
+    "args": ["--build", "build", "--target", "clean"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
+    "label": "StyLua: check file",
+    "command": "stylua",
+    "args": ["--check", "$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "StyLua: format file",
+    "command": "stylua",
+    "args": ["$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "ruff: check file",
+    "command": "ruff",
+    "args": ["check", "$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "ruff: format file",
+    "command": "ruff",
+    "args": ["format", "$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  },
+  {
+    "label": "luacheck: check file",
+    "command": "luacheck",
+    "args": ["$ZED_FILE"],
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "current"
+  }
+]

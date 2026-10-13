@@ -399,7 +399,9 @@ You are now at step 1 of "Installation steps" below.
 ## Installation steps
 
 Run the staged scripts in order. **Read each one before running.** None
-are silent; AUR builds explicitly pause and print the PKGBUILD for your
+are silent; AUR builds explicitly pause and print the whole AUR repo
+(PKGBUILD first, then its install scripts, patches and helpers — later
+runs show only the diff since your last approved review) for your
 sign-off before building anything.
 
 ```bash

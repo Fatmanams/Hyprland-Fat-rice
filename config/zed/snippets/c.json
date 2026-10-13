@@ -1,0 +1,27 @@
+// C snippets for Zed (config/zed/snippets/c.json -> %APPDATA%\Zed\snippets
+// on Windows, ~/.config/zed/snippets on Linux). Body lines use $1/$2
+// tab stops and $0 for the final cursor position.
+{
+  "main function": {
+    "prefix": "main",
+    "body": [
+      "int main(int argc, char *argv[])",
+      "{",
+      "    $0",
+      "    return 0;",
+      "}"
+    ]
+  },
+  "include stdio": {
+    "prefix": "inc",
+    "body": ["#include <stdio.h>"]
+  },
+  "printf debug": {
+    "prefix": "pr",
+    "body": ["printf(\"$1\\n\");", "$0"]
+  },
+  "for loop": {
+    "prefix": "for",
+    "body": ["for (int ${1:i} = 0; ${1:i} < ${2:n}; ${1:i}++)", "{", "    $0", "}"]
+  }
+}

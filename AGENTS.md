@@ -127,10 +127,11 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   │                          60-update.sh lint gate)
 │   ├── lint.sh                lint manifest: owns every lint file list and
 │   │                          runs all checks (bash -n, shellcheck, jq,
-│   │                          emacs, luajit, g++, lint-themes.sh); CI, the
-│   │                          60-update.sh lint gate, and the Zed tasks
-│   │                          all call it — strict in CI, --skip-missing in
-│   │                          the gate and local runs
+│   │                          emacs, luajit, g++, lint-themes.sh, the awk
+│   │                          duplicate-bind scan); CI, the 60-update.sh
+│   │                          lint gate, and the Zed tasks all call it —
+│   │                          strict in CI, --skip-missing in the gate
+│   │                          and local runs
 │   └── lib/rice-version.sh    shared state store: deployed.env/rollback.env,
 │                              update.log, git-restore helper
 └── config/
@@ -244,7 +245,7 @@ never silent).
 1. **The full suite** (what CI runs, one named step per check):
    ```
    bash scripts/lint.sh all
-   # or one check: bash | shellcheck | json | emacs | lua | cpp | themes
+   # or one check: bash | shellcheck | json | emacs | lua | cpp | themes | binds
    ```
 2. **Bash syntax** — `bash -n` over every shell file: `scripts/`,
    `scripts/lib/`, every config-side `.sh` (the `config/**/*.sh` glob
@@ -271,6 +272,16 @@ never silent).
    matches the preset inventory exactly, and every `{placeholder}` in
    the wal templates is a name (or Color format property) pywal16
    exports.
+7. **Hypr keybind duplicates** — `lint.sh binds`: an awk scan over
+   `config/hypr/hyprland.conf` + `config/hypr/keybinds-extra.conf`
+   (the two files the bind section reads). It expands `$name = value`
+   assignments (value = first token, comments stripped, longest names
+   first), normalizes each bind — lowercased, modifiers split and
+   sorted, keyword flag suffixes (binde/bindl/bindel/...) ignored,
+   `bindm` compared only against other `bindm` — and FAILs naming
+   both file:line whenever a (modifiers, key) pair is bound twice.
+   Hyprland key names are case-insensitive and every matching bind
+   fires, so a duplicate is two live actions on one keypress.
 
 If you add a new script, structure, or behavior, run the relevant
 `lint.sh` checks before committing, and extend the manifest's lists

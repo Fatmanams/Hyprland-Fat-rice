@@ -1,0 +1,26 @@
+// Python snippets for Zed (config/zed/snippets/python.json).
+{
+  "main guard": {
+    "prefix": "main",
+    "body": [
+      "def main():",
+      "    $0",
+      "",
+      "",
+      "if __name__ == \"__main__\":",
+      "    main()"
+    ]
+  },
+  "dataclass": {
+    "prefix": "dc",
+    "body": ["@dataclass", "class ${1:Name}:", "    ${2:field}: ${3:type}"]
+  },
+  "print debug": {
+    "prefix": "pr",
+    "body": ["print(f\"${1:var} = {${1:var}}\")", "$0"]
+  },
+  "pytest test": {
+    "prefix": "test",
+    "body": ["def test_${1:name}():", "    $0"]
+  }
+}

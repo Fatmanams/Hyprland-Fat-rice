@@ -28,6 +28,13 @@
     "save": "all"
   },
   {
+    "label": "Repo: Hypr bind duplicates",
+    "command": "bash scripts/lint.sh binds",
+    "use_new_terminal": false,
+    "reveal": "always",
+    "save": "all"
+  },
+  {
     "label": "Repo: Diff check",
     "command": "git diff --check",
     "use_new_terminal": false,

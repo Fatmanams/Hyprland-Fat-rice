@@ -1,0 +1,29 @@
+// Rust snippets for Zed (config/zed/snippets/rust.json).
+{
+  "test module": {
+    "prefix": "tmod",
+    "body": [
+      "#[cfg(test)]",
+      "mod tests {",
+      "    use super::*;",
+      "",
+      "    #[test]",
+      "    fn ${1:test_name}() {",
+      "        $0",
+      "    }",
+      "}"
+    ]
+  },
+  "derive struct": {
+    "prefix": "dstruct",
+    "body": ["#[derive(Debug, Clone)]", "struct ${1:Name} {", "    $0", "}"]
+  },
+  "debug print": {
+    "prefix": "dbg",
+    "body": ["println!(\"${1:var} = {:?}\", ${1:var});", "$0"]
+  },
+  "main function": {
+    "prefix": "main",
+    "body": ["fn main() {", "    $0", "}"]
+  }
+}

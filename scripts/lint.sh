@@ -21,6 +21,9 @@
 #   - lua         luajit parse of nvim's init.lua (nvim's dialect)
 #   - cpp         g++ -fsyntax-only of the rofi keybind menu
 #   - themes      scripts/lint-themes.sh (presets + wal templates)
+#   - binds       awk duplicate-bind scan over the two hypr confs:
+#                 $vars expanded (longest name first), modifiers split
+#                 and sorted, keys lowercased, bindm vs bindm only
 #   - all         everything above, in that order
 #
 # Modes:
@@ -62,12 +65,16 @@ JSON_CONCAT=(config/wlogout/layout)
 ELISP=(config/emacs/init.el config/hypr/themes/*/colors.el \
        config/wal/templates/*.el)
 
+# The two files Hyprland's bind section actually reads: the main config
+# plus the keybinds-extra.conf it sources.
+BINDS_FILES=(config/hypr/hyprland.conf config/hypr/keybinds-extra.conf)
+
 # ---- helpers ---------------------------------------------------------------------
 
 usage() {
     cat <<'EOF'
 usage: scripts/lint.sh [--skip-missing] <check>...
-  checks: bash shellcheck json emacs lua cpp themes all
+  checks: bash shellcheck json emacs lua cpp themes binds all
   --skip-missing: SKIP (loudly) instead of FAIL when a tool is absent
 EOF
 }
@@ -218,6 +225,134 @@ check_themes() {
     report themes "$rc"
 }
 
+check_binds() {
+    local f rc=0
+    for f in "${BINDS_FILES[@]}"; do
+        [[ -e $f ]] \
+            || { echo "  FAIL manifest path does not exist: $f" >&2; rc=1; }
+    done
+    if [[ $rc -eq 0 ]]; then
+        echo "  hypr bind duplicate scan: ${BINDS_FILES[*]}"
+        # Hyprland key names are case-insensitive and it does not
+        # de-duplicate: two binds that normalize to the same
+        # (modifiers, key) both fire on one keypress. The scan below
+        # mirrors the parser just enough to catch that: variables are
+        # expanded ($name = value, value = first token, comments
+        # stripped, longest names first so $key_lock is not eaten by a
+        # hypothetical $key_l), flag suffixes on the bind keyword
+        # (binde/bindl/bindel/...) are ignored, modifiers are split
+        # and sorted, keys are lowercased, and mouse binds (bindm)
+        # are compared only against other mouse binds. Pure awk, no
+        # new runtime dependency.
+        awk '
+            # Pass 1: collect $name = value assignments and remember
+            # every bind line (lowercased, comments stripped).
+            {
+                s = tolower($0)
+                sub(/#.*/, "", s)
+                if (match(s, /^[ \t]*\$[a-z0-9_]+[ \t]*=/)) {
+                    head = substr(s, RSTART, RLENGTH)
+                    sub(/^[ \t]*\$/, "", head)
+                    sub(/[ \t]*=$/, "", head)
+                    rest = substr(s, RSTART + RLENGTH)
+                    sub(/^[ \t]+/, "", rest)
+                    split(rest, tok, /[ \t]+/)
+                    if (head != "" && tok[1] != "") vars[head] = tok[1]
+                } else if (s ~ /^[ \t]*bind[a-z]*[ \t]*=/) {
+                    nb++
+                    bloc[nb] = FILENAME ":" FNR
+                    bline[nb] = s
+                }
+            }
+
+            # Replace whole-word occurrences of $name in sv. The scan
+            # offset jumps past inserted values, so a value can never
+            # re-trigger itself.
+            function expand_var(sv, n,    name, val, off, rest, pos, absp, endc) {
+                name = "$" n
+                val = vars[n]
+                off = 1
+                while (off <= length(sv)) {
+                    rest = substr(sv, off)
+                    pos = index(rest, name)
+                    if (pos == 0) break
+                    absp = off + pos - 1
+                    endc = substr(sv, absp + length(name), 1)
+                    if (endc == "" || endc !~ /[a-z0-9_]/) {
+                        sv = substr(sv, 1, absp - 1) val \
+                             substr(sv, absp + length(name))
+                        off = absp + length(val)
+                    } else {
+                        off = absp + 1
+                    }
+                }
+                return sv
+            }
+
+            END {
+                for (v in vars) names[++nn] = v
+                for (i = 2; i <= nn; i++) {
+                    cur = names[i]
+                    for (j = i - 1; j >= 1 && length(names[j]) < length(cur); j--)
+                        names[j + 1] = names[j]
+                    names[j + 1] = cur
+                }
+                rc = 0
+                if (nb == 0) {
+                    print "  FAIL binds: no bind lines found in the manifest files" | "cat 1>&2"
+                    rc = 1
+                }
+                for (b = 1; b <= nb; b++) {
+                    s = bline[b]
+                    for (iter = 0; iter < 8; iter++) {
+                        changed = 0
+                        for (i = 1; i <= nn; i++) {
+                            t = expand_var(s, names[i])
+                            if (t != s) { s = t; changed = 1 }
+                        }
+                        if (!changed) break
+                    }
+                    split(s, fld, ",")
+                    # fld[1] is "bind = <mods>" — the first comma comes
+                    # after the mods, so keyword and mods split on the
+                    # "=", and the key is fld[2].
+                    eqp = index(fld[1], "=")
+                    if (eqp == 0) continue
+                    kw = substr(fld[1], 1, eqp - 1)
+                    mods = substr(fld[1], eqp + 1)
+                    gsub(/^[ \t]+|[ \t]+$/, "", kw)
+                    if (kw !~ /^bind[a-z]*$/) continue
+                    kind = (substr(kw, 5) ~ /m/) ? "bindm" : "bind"
+                    gsub(/^[ \t]+|[ \t]+$/, "", mods)
+                    nm = split(mods, mtok, /[ \t]+/)
+                    for (i = 2; i <= nm; i++) {
+                        cur = mtok[i]
+                        for (j = i - 1; j >= 1 && mtok[j] > cur; j--)
+                            mtok[j + 1] = mtok[j]
+                        mtok[j + 1] = cur
+                    }
+                    cmods = ""
+                    for (i = 1; i <= nm; i++) {
+                        sep = (i > 1) ? "+" : ""
+                        cmods = cmods sep mtok[i]
+                    }
+                    key = fld[2]
+                    gsub(/^[ \t]+|[ \t]+$/, "", key)
+                    id = kind SUBSEP cmods SUBSEP key
+                    if (id in seen) {
+                        print "  FAIL binds: duplicate " kind " [" cmods " + " key "] at " seen[id] " and " bloc[b] | "cat 1>&2"
+                        rc = 1
+                    } else {
+                        seen[id] = bloc[b]
+                    }
+                }
+                exit rc
+            }
+        ' "${BINDS_FILES[@]}" || rc=1
+    fi
+    report binds "$rc"
+}
+
 # ---- main ------------------------------------------------------------------------
 
 CHECKS=()
@@ -225,7 +360,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-missing) SKIP_MISSING=1 ;;
         -h|--help) usage; exit 0 ;;
-        bash|shellcheck|json|emacs|lua|cpp|themes|all) CHECKS+=("$1") ;;
+        bash|shellcheck|json|emacs|lua|cpp|themes|binds|all) CHECKS+=("$1") ;;
         *) echo "lint.sh: unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
     shift
@@ -235,7 +370,7 @@ done
 EXPANDED=()
 for c in "${CHECKS[@]}"; do
     if [[ $c == all ]]; then
-        EXPANDED+=(bash shellcheck json emacs lua cpp themes)
+        EXPANDED+=(bash shellcheck json emacs lua cpp themes binds)
     else
         EXPANDED+=("$c")
     fi

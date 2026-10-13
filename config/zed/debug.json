@@ -1,0 +1,35 @@
+// Global Zed debug configurations (Windows: %APPDATA%\Zed\debug.json via
+// install.ps1; Linux: ~/.config/zed/debug.json via the blanket copy).
+// Zed merges these into every workspace's "New Debug Session" modal.
+// C/C++ debugging uses Zed's built-in CodeLLDB adapter; Rust and Python
+// need no entries here -- Zed creates debug scenarios automatically from
+// entry points and tests for those languages. The two entries below
+// exist because the program path depends on the CMake generator: the
+// VS generator (Windows default, no dev prompt needed) writes binaries
+// to build/Debug/, single-config generators (Linux/Ninja) write to
+// build/. Rename the program field to your actual target name; $ZED_STEM
+// is the current file's name without extension.
+[
+  {
+    "label": "C/C++: debug CMake target (VS generator, build/Debug)",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/Debug/$ZED_STEM.exe",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "build": {
+      "command": "cmake",
+      "args": ["--build", "build", "--config", "Debug"]
+    }
+  },
+  {
+    "label": "C/C++: debug CMake target (single-config, build/)",
+    "adapter": "CodeLLDB",
+    "request": "launch",
+    "program": "$ZED_WORKTREE_ROOT/build/$ZED_STEM",
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "build": {
+      "command": "cmake",
+      "args": ["--build", "build"]
+    }
+  }
+]

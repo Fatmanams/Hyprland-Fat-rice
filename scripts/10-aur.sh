@@ -1,7 +1,16 @@
 #!/usr/bin/env bash
 # 10-aur.sh — source-built packages using the reviewed AUR workflow:
 #   * Pull each AUR repo by git clone (no AUR helper).
-#   * Print the full PKGBUILD to stdout for human review (read it!).
+#   * Print every tracked file of the AUR repo to stdout for human
+#     review (read it all!): PKGBUILD first, then *.install scripts,
+#     then patches/helpers — text files up to 400 lines in full with
+#     line numbers, bigger or binary files as name + size + sha256.
+#     On re-runs, show the commits and the full diff since the commit
+#     you last approved (recorded in $BUILDROOT/.reviewed/<pkg>)
+#     instead of the whole files; if HEAD is unchanged, say so.
+#   * Scan the PKGBUILD and its install scripts for the red-flag
+#     patterns listed at the bottom of this header, and warn
+#     "unpinned source" for any non-VCS source whose checksum is SKIP.
 #   * Wait for explicit confirmation before building.
 #   * Build with plain `makepkg -Cs` (clean + syncdeps + build, NO -i).
 #
@@ -79,13 +88,19 @@
 # The local repo you already have set up on this machine: read
 # LOCALREPO_DIR below and adjust if yours is elsewhere.
 #
-# Red flags that get flagged loudly when found in the PKGBUILD:
+# Red flags that get flagged loudly when found in the PKGBUILD or its
+# install scripts:
 #   * `curl ... | bash`  or  `... | sh`  anywhere
 #   * anything that downloads something into the install step that
 #     isn't from the upstream source declared in source=()
-#   * post-registration network fetches
+#   * post-registration network fetches (curl/wget in install scripts)
+#   * eval / `sh -c` / base64 in install scripts
+#   * install scripts writing outside the package (absolute paths)
+#   * systemctl in install scripts (INFO — enable/start especially)
+#   * non-VCS sources whose checksum is SKIP ("unpinned source";
+#     VCS sources like git+https are normally SKIP and exempt)
 # The review step below will print a warning if any of these appear
-# but it's still your job to read the PKGBUILD.
+# but it's still your job to read everything it prints.
 
 set -euo pipefail
 
@@ -123,7 +138,10 @@ EOF
     fi
 }
 
-# Heuristic scan of a PKGBUILD for the red-flag patterns named in the policy.
+# Heuristic scan of a PKGBUILD — and of every *.install script in the
+# repo plus the file named by install= (those run as ROOT via pacman) —
+# for the red-flag patterns named in the policy. RED FLAG findings set
+# the return status to 1; INFO findings do not.
 scan_pkgbuild() {
     local f="$1"
     local flags=0
@@ -135,10 +153,6 @@ scan_pkgbuild() {
         echo "  !! RED FLAG: wget|bash pattern detected"
         flags=1
     fi
-    if grep -En 'post_install|post_upgrade' "$f" >/dev/null 2>&1 && \
-       grep -En 'systemctl enable|systemctl start' "$f" >/dev/null 2>&1; then
-        echo "  !! INFO: PKGBUILD enables services in install hooks — review whether you want that."
-    fi
     if grep -En 'https?://[^/]*pastebin|[^/]*ipfs|[^/]*ngrok|[^/]*ngrok-free' "$f" >/dev/null 2>&1; then
         echo "  !! RED FLAG: suspicious source URL (pastebin/ipfs/ngrok)"
         flags=1
@@ -147,6 +161,125 @@ scan_pkgbuild() {
         echo "  !! RED FLAG: git clone | sh detected"
         flags=1
     fi
+
+    # --- install scripts: *.install glob + the install= file ----------
+    local installfile=""
+    local maybeline
+    maybeline=$(sed -n 's/^[[:space:]]*install[[:space:]]*=[[:space:]]*//p' "$f" | head -n1)
+    if [[ -n $maybeline ]]; then
+        installfile=${maybeline%%#*}
+        installfile=${installfile//\"/}
+        installfile=${installfile//\'/}
+        installfile=${installfile//[[:space:]]/}
+    fi
+    local -a install_scripts=()
+    local g dup
+    shopt -s nullglob
+    for g in *.install; do
+        install_scripts+=("$g")
+    done
+    shopt -u nullglob
+    if [[ -n $installfile && -f $installfile ]]; then
+        dup=0
+        for g in "${install_scripts[@]}"; do
+            if [[ $g == "$installfile" ]]; then
+                dup=1
+            fi
+        done
+        if (( dup == 0 )); then
+            install_scripts+=("$installfile")
+        fi
+    fi
+    local s wlines
+    for s in "${install_scripts[@]}"; do
+        if grep -Eq 'systemctl.*[[:space:]]enable\b|systemctl.*[[:space:]]start\b' "$s" 2>/dev/null; then
+            echo "  !! INFO: $s enables/starts systemd services — review whether you want that."
+        elif grep -Eq '\bsystemctl\b' "$s" 2>/dev/null; then
+            echo "  !! INFO: $s uses systemctl — review what it does."
+        fi
+        if grep -Eq '\bcurl\b' "$s" 2>/dev/null; then
+            echo "  !! RED FLAG: $s: curl in install script — network fetch at install time"
+            flags=1
+        fi
+        if grep -Eq '\bwget\b' "$s" 2>/dev/null; then
+            echo "  !! RED FLAG: $s: wget in install script — network fetch at install time"
+            flags=1
+        fi
+        if grep -Eq '\b(bash|sh)[[:space:]]+-c\b' "$s" 2>/dev/null; then
+            echo "  !! RED FLAG: $s: sh -c in install script"
+            flags=1
+        fi
+        if grep -Eq '\beval\b' "$s" 2>/dev/null; then
+            echo "  !! RED FLAG: $s: eval in install script"
+            flags=1
+        fi
+        if grep -Eq '\bbase64\b' "$s" 2>/dev/null; then
+            echo "  !! RED FLAG: $s: base64 in install script — possible payload obfuscation"
+            flags=1
+        fi
+        wlines=$(grep -En '[0-9]?>>?[[:space:]]*/' "$s" 2>/dev/null | grep -Ev '/dev/(null|zero)' || true)
+        if [[ -z $wlines ]]; then
+            wlines=$(grep -En '[[:space:]](cp|mv|install|ln|rm|touch|mkdir|tee|sed|chmod|chown)[[:space:]][^#]*[[:space:]]*/[^[:space:]#]' "$s" 2>/dev/null || true)
+        fi
+        if [[ -n $wlines ]]; then
+            echo "  !! RED FLAG: $s: writes outside the package (absolute-path write)"
+            flags=1
+        fi
+    done
+
+    # --- unpinned sources: non-VCS source whose checksum is SKIP -----
+    local tokpat="'[^']*'|\"[^\"]*\"|[^[:space:]()\"']+"
+    local arr sumblock tok u i isvcs
+    local -a toks=() srcs=() arrtoks=()
+    local -A pinned=()
+    for arr in source md5sums sha1sums sha224sums sha256sums sha384sums sha512sums b2sums; do
+        sumblock=$(awk -v arr="$arr" '
+            $0 ~ "^[[:space:]]*" arr "([_[:alnum:]]*)?[[:space:]]*=" { inblock=1 }
+            inblock { print }
+            inblock && /\)/ { inblock=0 }
+        ' "$f")
+        if [[ -z $sumblock ]]; then
+            continue
+        fi
+        mapfile -t toks < <(printf '%s\n' "$sumblock" | sed 's/#.*$//' | grep -oE "$tokpat")
+        arrtoks=()
+        for tok in "${toks[@]}"; do
+            if [[ $tok =~ ^[[:alpha:]_][[:alnum:]_]*= ]]; then
+                continue
+            fi
+            tok=${tok//\"/}
+            tok=${tok//\'/}
+            if [[ -n $tok ]]; then
+                arrtoks+=("$tok")
+            fi
+        done
+        if [[ $arr == "source" ]]; then
+            srcs=("${arrtoks[@]}")
+        else
+            i=0
+            for tok in "${arrtoks[@]}"; do
+                if [[ ${tok^^} != "SKIP" ]]; then
+                    pinned[$i]=1
+                fi
+                i=$((i+1))
+            done
+        fi
+    done
+    i=0
+    for tok in "${srcs[@]}"; do
+        u=${tok#*::}
+        u=${u%%#*}
+        isvcs=0
+        case "$u" in
+            git+*|git://*|bzr+*|bzr://*|hg+*|hg://*|svn+*|svn://*) isvcs=1 ;;
+            *.git) isvcs=1 ;;
+        esac
+        if (( isvcs == 0 )) && (( ${pinned[$i]:-0} == 0 )); then
+            echo "  !! RED FLAG: unpinned source: $tok (checksum is SKIP or missing)"
+            flags=1
+        fi
+        i=$((i+1))
+    done
     return $flags
 }
 
@@ -169,14 +302,81 @@ build_one() {
 
     cd "$srcdir"
 
+    # The commit the user last approved is recorded in
+    # $BUILDROOT/.reviewed/<pkg> so re-runs show only what changed
+    # upstream instead of re-printing every file.
+    mkdir -p "$BUILDROOT/.reviewed"
+    local reviewed_file="$BUILDROOT/.reviewed/$pkgname"
+    local head_rev
+    local old_rev=""
+    head_rev=$(git rev-parse HEAD)
+    if [[ -f $reviewed_file ]]; then
+        old_rev=$(<"$reviewed_file")
+    fi
+    if [[ -n $old_rev ]] && ! git cat-file -e "$old_rev^{commit}" 2>/dev/null; then
+        echo "==> NOTE: recorded review commit $old_rev is not in this clone;"
+        echo "    showing the full review instead of a diff."
+        old_rev=""
+    fi
+
     echo
     echo "------------------------------------------------------------------"
-    echo "==> PKGBUILD review  (read the whole thing below before approving)"
-    echo "------------------------------------------------------------------"
-    scan_pkgbuild ./PKGBUILD || true
-    echo "------------------------------------------------------------------"
-    # Print the whole PKGBUILD, with line numbers, then ask for go-ahead.
-    nl -ba ./PKGBUILD | sed 's/^/  /'
+    if [[ -n $old_rev && $old_rev == "$head_rev" ]]; then
+        echo "==> $pkgname: HEAD $head_rev is exactly the commit you reviewed"
+        echo "    and approved last time — nothing changed since then, so"
+        echo "    the file listing is skipped."
+    else
+        echo "==> AUR repo review  (read everything below before approving)"
+        echo "------------------------------------------------------------------"
+        echo "==> Tracked files in this AUR repo:"
+        git ls-files | sed 's/^/    /'
+        echo "------------------------------------------------------------------"
+        if [[ -n $old_rev ]]; then
+            echo "==> Commits since the review you approved ($old_rev..HEAD):"
+            git log --oneline "$old_rev..HEAD"
+            echo
+            echo "==> Full diff since that review, shown instead of the whole files:"
+            git diff "$old_rev" HEAD
+        else
+            # PKGBUILD first, then *.install scripts, then everything
+            # else (patches, helpers, .SRCINFO). Text files up to 400
+            # lines are printed in full with line numbers; bigger or
+            # binary files show as name + size + sha256.
+            local rf
+            local lines size sum
+            local -a install_files=() other_files=() review_files=( PKGBUILD )
+            while IFS= read -r rf; do
+                case "$rf" in
+                    PKGBUILD) ;;
+                    *.install) install_files+=("$rf") ;;
+                    *) other_files+=("$rf") ;;
+                esac
+            done < <(git ls-files)
+            review_files+=( "${install_files[@]}" "${other_files[@]}" )
+            for rf in "${review_files[@]}"; do
+                if [[ -f $rf ]] && grep -Iq . "$rf" 2>/dev/null; then
+                    lines=$(wc -l < "$rf")
+                    if (( lines <= 400 )); then
+                        echo "==> $rf (${lines} lines):"
+                        nl -ba "$rf" | sed 's/^/  /'
+                    else
+                        size=$(wc -c < "$rf")
+                        sum=$(sha256sum "$rf" | awk '{print $1}' || true)
+                        echo "==> $rf: ${lines} lines (over 400 — not shown):"
+                        echo "    ${size} bytes, sha256 ${sum:-N/A}"
+                    fi
+                else
+                    size=$(wc -c < "$rf" 2>/dev/null || printf '?')
+                    sum=$(sha256sum "$rf" 2>/dev/null | awk '{print $1}' || true)
+                    echo "==> $rf: binary or empty — not shown:"
+                    echo "    ${size} bytes, sha256 ${sum:-N/A}"
+                fi
+                echo
+            done
+        fi
+        echo "------------------------------------------------------------------"
+        scan_pkgbuild ./PKGBUILD || true
+    fi
     echo "------------------------------------------------------------------"
     printf "==> Build %s now? [y/N] " "$pkgname"
     local yn
@@ -186,6 +386,9 @@ build_one() {
         SKIPPED_PACKAGES+=( "$pkgname" )
         return 0
     fi
+
+    # Approved: remember this commit so the next run diffs against it.
+    printf '%s\n' "$head_rev" > "$reviewed_file"
 
     # Build with clean + sync-deps (NO -o: -o means "no build", see makepkg(8)).
     makepkg -Cs --noconfirm

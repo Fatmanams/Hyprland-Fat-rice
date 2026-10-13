@@ -1,0 +1,35 @@
+// C++ snippets for Zed (config/zed/snippets/cpp.json).
+{
+  "main function": {
+    "prefix": "main",
+    "body": [
+      "int main(int argc, char *argv[])",
+      "{",
+      "    $0",
+      "    return 0;",
+      "}"
+    ]
+  },
+  "header guard": {
+    "prefix": "guard",
+    "body": ["#pragma once", ""]
+  },
+  "class skeleton": {
+    "prefix": "class",
+    "body": [
+      "class ${1:Name}",
+      "{",
+      "public:",
+      "    $1() = default;",
+      "    ~$1() = default;",
+      "",
+      "private:",
+      "    $0",
+      "};"
+    ]
+  },
+  "vector debug print": {
+    "prefix": "pv",
+    "body": ["std::cout << \"${1:var} = \" << $1 << std::endl;", "$0"]
+  }
+}

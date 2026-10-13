@@ -1,0 +1,26 @@
+// Lua snippets for Zed (config/zed/snippets/lua.json).
+{
+  "local function": {
+    "prefix": "lfn",
+    "body": ["local function ${1:name}(${2:...})", "    $0", "end"]
+  },
+  "function": {
+    "prefix": "fn",
+    "body": ["function ${1:name}(${2:...})", "    $0", "end"]
+  },
+  "pcall wrap": {
+    "prefix": "pcall",
+    "body": [
+      "local ok, ${1:result} = pcall(function()",
+      "    $0",
+      "end)",
+      "if not ok then",
+      "    print(${2:err})",
+      "end"
+    ]
+  },
+  "print debug": {
+    "prefix": "pr",
+    "body": ["print(\"${1:label}: \" .. tostring(${2:var}))", "$0"]
+  }
+}

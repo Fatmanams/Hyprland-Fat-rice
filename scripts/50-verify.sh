@@ -74,12 +74,28 @@ else
 fi
 
 echo "==> [3/9] ufw firewall"
-# Both halves matter: the unit can be "active" while ufw itself was
-# never enabled, and vice versa.
-if systemctl is-active --quiet ufw.service && ufw status 2>/dev/null | grep -q "Status: active"; then
-    pass "ufw.service active and ufw reports Status: active"
+# `ufw status` needs root and this script refuses to run as root (the
+# EUID guard at the top), so the check cannot rely on it directly.
+# Evidence a normal user can read: the unit state plus ufw's on-disk
+# record in /etc/ufw/ufw.conf (world-readable, kept by `ufw enable`/
+# `ufw disable`). Both halves matter: the unit can be "active" while
+# ufw itself was never enabled, and vice versa. With passwordless
+# sudo we additionally require ufw's live "Status: active"; without
+# it that half is a SKIP, not a FAIL (same policy as [6/9]'s
+# sudo-gated /root snapshot probe).
+if systemctl is-active --quiet ufw.service && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
+    if sudo -n true 2>/dev/null; then
+        if sudo -n ufw status 2>/dev/null | grep -q "Status: active"; then
+            pass "ufw.service active, ufw.conf ENABLED=yes, ufw reports Status: active"
+        else
+            fail "sudo ufw status does not report active (status: $(sudo -n ufw status 2>/dev/null | head -n1 || echo 'unreadable'))"
+        fi
+    else
+        pass "ufw.service active and ufw.conf has ENABLED=yes"
+        echo "    SKIP: 'ufw status' needs root and sudo needs a password — run 'sudo ufw status' to verify (not counted as FAIL)"
+    fi
 else
-    fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw status: $(ufw status 2>/dev/null | head -n1 || echo 'unreadable'))"
+    fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw.conf: $(grep '^ENABLED=' /etc/ufw/ufw.conf 2>/dev/null || echo 'unreadable'))"
 fi
 
 echo "==> [4/9] clamav-freshclam"
