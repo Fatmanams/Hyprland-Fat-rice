@@ -24,6 +24,14 @@ jobs:
       - name: jq parse check (strip deliberate // headers first)
         run: bash scripts/lint.sh json
 
+      # Hyprland fires every bind matching a keypress and never
+      # de-duplicates, so a (modifiers, key) pair may be bound at most
+      # once across its two bind files. The awk scan expands $variables
+      # (longest name first), sorts modifiers, lowercases keys, and
+      # fails naming both file:line on any duplicate.
+      - name: hypr keybind duplicate scan (binds)
+        run: bash scripts/lint.sh binds
+
       - name: emacs lisp syntax check (byte-compile init.el + palette files)
         run: |
           set -euo pipefail

@@ -17,6 +17,10 @@
 #                 word "shellcheck" or it parses as a directive)
 #   - json        jq parse: the plain set, the deliberate //-header set
 #                 (stripped first), and wlogout's concatenated objects
+#   - binds       awk duplicate-bind scan over the two Hyprland bind
+#                 files: $variables expanded, modifiers sorted, keys
+#                 lowercased; any (modifiers, key) pair bound twice is
+#                 a FAIL — Hyprland fires both, no de-duplication
 #   - emacs       byte-compile init.el + the preset/template colors.el
 #   - lua         luajit parse of nvim's init.lua (nvim's dialect)
 #   - cpp         g++ -fsyntax-only of the rofi keybind menu
@@ -62,12 +66,14 @@ JSON_CONCAT=(config/wlogout/layout)
 ELISP=(config/emacs/init.el config/hypr/themes/*/colors.el \
        config/wal/templates/*.el)
 
+BINDS_FILES=(config/hypr/hyprland.conf config/hypr/keybinds-extra.conf)
+
 # ---- helpers ---------------------------------------------------------------------
 
 usage() {
     cat <<'EOF'
 usage: scripts/lint.sh [--skip-missing] <check>...
-  checks: bash shellcheck json emacs lua cpp themes all
+  checks: bash shellcheck json binds emacs lua cpp themes all
   --skip-missing: SKIP (loudly) instead of FAIL when a tool is absent
 EOF
 }
@@ -162,6 +168,103 @@ check_json() {
     report json "$rc"
 }
 
+check_binds() {
+    need_tool binds awk || return 0
+    local f rc=0 out
+    local -a files=()
+    for f in "${BINDS_FILES[@]}"; do
+        if [[ ! -e $f ]]; then
+            echo "  FAIL manifest path does not exist: $f" >&2
+            rc=1
+        else
+            files+=("$f")
+        fi
+    done
+    if [[ ${#files[@]} -eq 0 ]]; then
+        report binds "$rc"
+        return
+    fi
+    # Hyprland fires every bind matching a keypress and never
+    # de-duplicates, so a (modifiers, key) pair may be bound at most
+    # once across the two bind files. Pass 1 collects $name = value
+    # assignments (value = first token, comments stripped); pass 2
+    # reads them from stdin ("-", so every variable exists before any
+    # bind is expanded) and expands them longest-name-first, lowercase,
+    # with modifiers split and sorted. The keyword's flag suffix (binde,
+    # bindl, bindel, ...) is ignored — a repeat-on-hold bind on an
+    # already-bound key still collides — and mouse binds (bindm) are
+    # compared only against other bindm (disjoint key space).
+    echo "  hypr bind duplicate scan: ${files[*]}"
+    if ! out="$(
+        awk '
+            {
+                line = $0
+                sub(/#.*/, "", line)
+                if (line !~ /^[ \t]*\$[A-Za-z_][A-Za-z0-9_]*[ \t]*=/) next
+                sub(/^[ \t]*\$/, "", line)
+                name = line
+                sub(/=.*/, "", name)
+                val = line
+                sub(/^[^=]*=[ \t]*/, "", val)
+                sub(/[ \t].*/, "", val)
+                print name, val
+            }' "${files[@]}" \
+        | awk '
+            FILENAME == "-" { nv++; varname[nv] = $1; varval[$1] = $2; next }
+            !vsorted {
+                for (i = 2; i <= nv; i++) {
+                    t = varname[i]
+                    for (j = i - 1; j >= 1 && length(varname[j]) < length(t); j--)
+                        varname[j + 1] = varname[j]
+                    varname[j + 1] = t
+                }
+                vsorted = 1
+            }
+            match($0, /^[ \t]*bind[a-z]*[ \t]*=/) {
+                kw = substr($0, 1, RLENGTH)
+                gsub(/[ \t=]/, "", kw)
+                split(substr($0, RLENGTH + 1), fld, ",")
+                mods = fld[1]
+                key = fld[2]
+                for (i = 1; i <= nv; i++) {
+                    pat = "\\$" varname[i]
+                    gsub(pat, varval[varname[i]], mods)
+                    gsub(pat, varval[varname[i]], key)
+                }
+                mods = tolower(mods)
+                key = tolower(key)
+                gsub(/^[ \t]+/, "", mods); gsub(/[ \t]+$/, "", mods)
+                gsub(/^[ \t]+/, "", key);  gsub(/[ \t]+$/, "", key)
+                nm = split(mods, m, " ")
+                for (i = 2; i <= nm; i++) {
+                    v = m[i]
+                    for (j = i - 1; j >= 1 && m[j] > v; j--) m[j + 1] = m[j]
+                    m[j + 1] = v
+                }
+                mods = ""
+                shown = ""
+                for (i = 1; i <= nm; i++) {
+                    mods = mods (i > 1 ? " " : "") m[i]
+                    shown = shown (i > 1 ? "+" : "") m[i]
+                }
+                id = (kw == "bindm" ? "mouse" : "key") "|" mods "|" key
+                loc = FILENAME ":" FNR
+                if (id in seen) {
+                    printf "  FAIL binds: duplicate bind [%s + %s] at %s and %s\n", shown, key, seen[id], loc
+                    dup = 1
+                } else {
+                    seen[id] = loc
+                }
+            }
+            END { exit dup ? 1 : 0 }
+        ' - "${files[@]}"
+    )"; then
+        [[ -n $out ]] && printf '%s\n' "$out" >&2
+        rc=1
+    fi
+    report binds "$rc"
+}
+
 check_emacs() {
     need_tool emacs emacs || return 0
     local f rc=0
@@ -225,7 +328,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --skip-missing) SKIP_MISSING=1 ;;
         -h|--help) usage; exit 0 ;;
-        bash|shellcheck|json|emacs|lua|cpp|themes|all) CHECKS+=("$1") ;;
+        bash|shellcheck|json|binds|emacs|lua|cpp|themes|all) CHECKS+=("$1") ;;
         *) echo "lint.sh: unknown argument: $1" >&2; usage >&2; exit 2 ;;
     esac
     shift
@@ -235,7 +338,7 @@ done
 EXPANDED=()
 for c in "${CHECKS[@]}"; do
     if [[ $c == all ]]; then
-        EXPANDED+=(bash shellcheck json emacs lua cpp themes)
+        EXPANDED+=(bash shellcheck json binds emacs lua cpp themes)
     else
         EXPANDED+=("$c")
     fi
