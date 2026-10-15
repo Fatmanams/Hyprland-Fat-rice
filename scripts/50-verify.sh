@@ -76,10 +76,28 @@ fi
 echo "==> [3/9] ufw firewall"
 # Both halves matter: the unit can be "active" while ufw itself was
 # never enabled, and vice versa.
-if systemctl is-active --quiet ufw.service && ufw status 2>/dev/null | grep -q "Status: active"; then
-    pass "ufw.service active and ufw reports Status: active"
+# `ufw status` needs root (it drives `iptables -L`), and this script
+# refuses to run as root, so a check that shells out to it can never
+# pass on a healthy system — and 60-update.sh gates every update on
+# this script's exit code. Read the evidence a normal user can see
+# instead: the unit state plus ufw's on-disk record, /etc/ufw/ufw.conf
+# (world-readable on Arch — ufw restricts only the *.rules files and
+# init hooks), whose ENABLED=yes line `ufw enable` writes. With
+# passwordless sudo, additionally require a live "Status: active";
+# without it that half is a SKIP in [6/9]'s style, not a FAIL.
+if systemctl is-active --quiet ufw.service && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
+    pass "ufw.service active and ENABLED=yes in /etc/ufw/ufw.conf"
+    if sudo -n true 2>/dev/null; then
+        if sudo -n ufw status 2>/dev/null | grep -q "Status: active"; then
+            pass "ufw reports Status: active"
+        else
+            fail "ufw status does not report 'Status: active' (run 'sudo ufw status' by hand)"
+        fi
+    else
+        echo "    SKIP: cannot run 'ufw status' without a password — run 'sudo ufw status' to verify (not counted as FAIL)"
+    fi
 else
-    fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw status: $(ufw status 2>/dev/null | head -n1 || echo 'unreadable'))"
+    fail "ufw not fully active (unit: $(systemctl is-active ufw.service 2>&1), ufw.conf: $(grep '^ENABLED=' /etc/ufw/ufw.conf 2>/dev/null || echo 'unreadable'))"
 fi
 
 echo "==> [4/9] clamav-freshclam"
