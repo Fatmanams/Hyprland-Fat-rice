@@ -89,7 +89,7 @@ source is used. The packages this rice does compile use CPU-native flags
 | TUI file mgr     | yazi                 | pacman (extra)          | SUPER+SHIFT+E |
 | GUI file mgr     | thunar               | pacman (extra)          | SUPER+SHIFT+F; +gvfs +tumbler +thunar-archive-plugin |
 | Display manager  | sddm                 | pacman (extra)          |       |
-| SDDM theme       | sddm-astronaut-theme | **bare git clone**      | static-asset policy: no build step, cloned straight into /usr/share/sddm/themes |
+| SDDM theme       | sddm-astronaut-theme | pinned git commit       | static-asset policy: no build step; reviewed commit copied into /usr/share/sddm/themes (SHA in .rice-pinned-ref) |
 | GTK theming GUI  | nwg-look             | pacman (extra)          |       |
 | Qt theming       | kvantum / kvantum-qt5 | pacman (extra)         |       |
 | Gaming           | gamemode mangohud lib32-mangohud steam | pacman (extra/multilib) | steam installed by 00-base.sh (multilib) |
@@ -435,10 +435,11 @@ chmod +x scripts/*.sh
 #    then pacman -S from there. Pause+review each source build.
 ./scripts/10-aur.sh
 
-# 3. SDDM theme — bare git clone for the static asset. Snapshots the
-#    old SDDM state first, then clones Keyitdev's sddm-astronaut-theme
-#    into /usr/share/sddm/themes/sddm-astronaut-theme and addresses
-#    Current= in a new conf.d/10-theme.conf.
+# 3. SDDM theme — pinned-commit copy for the static asset. Snapshots
+#    the old SDDM state first, then copies Keyitdev's
+#    sddm-astronaut-theme at its pinned commit (SHA recorded in
+#    .rice-pinned-ref) into /usr/share/sddm/themes/sddm-astronaut-theme
+#    and addresses Current= in a new conf.d/10-theme.conf.
 ./scripts/20-sddm.sh
 
 # 4. Dotfiles — copies config/ tree into ~/.config, with a backup of
@@ -2956,7 +2957,7 @@ linux-rice/
 ├── scripts/
 │   ├── 00-base.sh                          official-repo install + makepkg.conf
 │   ├── 10-aur.sh                           reviewed-PKGBUILD builds + repo-add
-│   ├── 20-sddm.sh                          bare git clone + rollback snapshot
+│   ├── 20-sddm.sh                          pinned-commit copy + rollback snapshot
 │   ├── 30-dotfiles.sh                      copies config/ into ~/.config (backup first)
 │   ├── 40-gaming.sh                        verifies gaming extras + templates
 │   ├── 45-snapshots.sh                     snapper on btrfs / timeshift-rsync elsewhere (picks by root fs)
