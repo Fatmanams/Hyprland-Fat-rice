@@ -316,10 +316,15 @@ Two layers:
 
 ### NVIDIA-specific gotchas (read once if you're on NVIDIA)
 
-1. **Kernel cmdline** — required for modeset-on-boot:
+1. **Kernel cmdline** — modeset-on-boot:
    ```
-   nvidia_drm.modeset=1 nvidia_drm.fbdev=1
+   nvidia_drm.modeset=1
    ```
+   `fbdev` no longer needs setting: since driver 570.86.16 it is enabled
+   by default whenever modeset is on (Hyprland wiki, Nvidia page). Arch's
+   `nvidia` package also ships a modprobe.d file that enables modeset
+   already — check `cat /sys/module/nvidia_drm/parameters/modeset`
+   (must print `Y`); the manual edit below is only needed if it prints `N`.
    For systemd-boot: edit `/etc/kernel/cmdline` (or `/boot/loader/entries/*.conf`)
    and reinstall `linux` (`sudo pacman -S linux`) so the cmdline is regenerated
    into the new EFI entry. For GRUB: edit `/etc/default/grub` -> `GRUB_CMDLINE_LINUX_DEFAULT`
@@ -327,8 +332,10 @@ Two layers:
 
 2. **Hyprland config — uncomment the NVIDIA env block** in
    `~/.config/hypr/hyprland.conf`. The defaults shipped work on Intel/AMD;
-   on NVIDIA the `WLR_NO_HARDWARE_CURSORS=1` line is the difference between
-   a glitchy or invisible cursor (without) and a normal one (with).
+   on NVIDIA, if the cursor is glitchy or invisible, also uncomment the
+   `cursor { no_hardware_cursors = 1 }` block there. That compositor
+   option replaces the old `WLR_NO_HARDWARE_CURSORS` env var, which
+   current Hyprland no longer reads.
 
 3. **Don't install `nvidia-dkms` alongside `linux`** — pick one. `nvidia`
    works with stock `linux`. Use `nvidia-dkms` only if you're on `linux-zen`,

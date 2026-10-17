@@ -484,7 +484,8 @@ section for the user-facing version):
    (`__GL_*`, `LIBVA_DRIVER_NAME`, `VDPAU_DRIVER`, `Mesa_*`). User
    sources it from `.zshrc` or `.bashrc`. Auto-detects at shell start.
 4. README documents NVIDIA kernel cmdline requirements:
-   `nvidia_drm.modeset=1 nvidia_drm.fbdev=1`.
+   `nvidia_drm.modeset=1` (fbdev is default-on with modeset on
+   driver 570.86.16+).
 
 When changing GPU-related env vars, update **all three** layers in
 lockstep, or the rice regresses on one of the two vendors without an
