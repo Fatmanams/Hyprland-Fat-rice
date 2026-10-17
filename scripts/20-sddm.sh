@@ -2,8 +2,13 @@
 # 20-sddm.sh — install the static sddm-astronaut-theme asset directly.
 #
 # This is a static asset repo (QML/JS/CSS for the SDDM greeter), no
-# compile step. Bare git clone straight from upstream into
-# /usr/share/sddm/themes per the README.
+# compile step. It installs at a pinned upstream commit (THEME_REF):
+# the clone and the checkout run as the normal user in a throwaway
+# temp dir, root only copies the reviewed files into
+# /usr/share/sddm/themes and records the pin in
+# $THEME_DIR/.rice-pinned-ref. Re-runs on the same pin are a no-op; a
+# changed pin shows the OLD..NEW diff and asks before replacing. git
+# never runs as root here, and nothing is ever pulled in place.
 #
 # SAFETY (per your rollback plan):
 #   1. Does NOT remove the plasma/kde session entries — they stay selectable.
@@ -26,9 +31,21 @@ fi
 
 THEME_DIR=/usr/share/sddm/themes/sddm-astronaut-theme
 THEME_REPO=https://github.com/Keyitdev/sddm-astronaut-theme.git
+# Pinned upstream commit (the repo ships no tags). Bumping it means
+# reviewing the OLD..NEW diff first — same obligation as an AUR
+# PKGBUILD bump. Recorded on every install in .rice-pinned-ref.
+THEME_REF=abb3163c724935af888ba5ea9ac0c4f22afd8048
 SDDM_CONF_DIR=/etc/sddm.conf.d
 TS=$(date +%Y%m%d-%H%M%S)
 SNAP=/root/sddm-snap.$TS
+WORK=""
+
+cleanup() {
+    if [[ -n "$WORK" && -d "$WORK" ]]; then
+        rm -rf "$WORK"
+    fi
+}
+trap cleanup EXIT
 
 echo "==> [1/5] Installing sddm-astronaut deps from official repos"
 sudo pacman -S --needed --noconfirm \
@@ -45,16 +62,75 @@ CURRENT_THM=$(
 echo "$CURRENT_THM" | sudo tee "$SNAP/PREVIOUS_Current.txt" >/dev/null
 echo "    Previous Current= recorded in $SNAP/PREVIOUS_Current.txt (value: '$CURRENT_THM')"
 
-echo "==> [3/5] Cloning theme (depth=1, master) to $THEME_DIR"
-if [[ -d "$THEME_DIR/.git" ]]; then
-    echo "    Existing clone — pulling latest master."
-    sudo git -C "$THEME_DIR" pull --ff-only
-else
+echo "==> [3/5] Installing theme at pinned commit $THEME_REF"
+OLD_REF=""
+NEED_SYNC=1
+if [[ -d "$THEME_DIR" ]]; then
+    OLD_REF=$(sudo cat "$THEME_DIR/.rice-pinned-ref" 2>/dev/null || true)
+    if [[ -z "$OLD_REF" && -f "$THEME_DIR/.git/HEAD" ]]; then
+        # Install predates pinning: the old script left a root-owned
+        # clone. Read its checked-out commit straight out of .git so
+        # git itself never runs as root on it.
+        LEG_HEAD=$(sudo cat "$THEME_DIR/.git/HEAD" 2>/dev/null || true)
+        if [[ "$LEG_HEAD" == "ref: "* ]]; then
+            LEG_REF=${LEG_HEAD#ref: }
+            OLD_REF=$(sudo cat "$THEME_DIR/.git/$LEG_REF" 2>/dev/null || true)
+            if [[ -z "$OLD_REF" && -f "$THEME_DIR/.git/packed-refs" ]]; then
+                OLD_REF=$(sudo awk -v ref="$LEG_REF" '$2 == ref {print $1; exit}' \
+                    "$THEME_DIR/.git/packed-refs" 2>/dev/null || true)
+            fi
+        else
+            OLD_REF=$LEG_HEAD
+        fi
+    fi
+    if [[ "$OLD_REF" == "$THEME_REF" ]]; then
+        echo "    Already at the pinned ref — nothing to fetch or copy."
+        NEED_SYNC=0
+    fi
+fi
+
+if [[ $NEED_SYNC -eq 1 ]]; then
+    WORK=$(mktemp -d)
+    git clone "$THEME_REPO" "$WORK/theme"
+    git -C "$WORK/theme" checkout --detach "$THEME_REF"
+    ACTUAL_REF=$(git -C "$WORK/theme" rev-parse HEAD)
+    if [[ "$ACTUAL_REF" != "$THEME_REF" ]]; then
+        echo "  !! checkout mismatch: HEAD is '$ACTUAL_REF', wanted '$THEME_REF'."
+        echo "     NOT touching $THEME_DIR. Stop and review."
+        exit 1
+    fi
     if [[ -d "$THEME_DIR" ]]; then
-        echo "    $THEME_DIR exists without .git — moving to $THEME_DIR.bak.$TS"
+        echo "    Existing install differs from the pin (installed: ${OLD_REF:-unknown})."
+        if [[ -n "$OLD_REF" ]]; then
+            if ! git -C "$WORK/theme" diff --stat "$OLD_REF..$THEME_REF"; then
+                if ! git -C "$WORK/theme" diff --stat "$OLD_REF" "$THEME_REF"; then
+                    echo "    (no diff available: $OLD_REF is not in the upstream history)"
+                fi
+            fi
+        else
+            echo "    (existing install has no readable pin — no diff to show)"
+        fi
+        REPLY=""
+        read -r -p "    Replace $THEME_DIR with the pinned copy? [y/N] " REPLY || true
+        case "$REPLY" in
+            y|Y) ;;
+            *)
+                echo "    Declined — keeping the existing theme."
+                exit 0
+                ;;
+        esac
         sudo mv "$THEME_DIR" "$THEME_DIR.bak.$TS"
     fi
-    sudo git clone -b master --depth 1 "$THEME_REPO" "$THEME_DIR"
+    rm -rf "$WORK/theme/.git"
+    sudo cp -a "$WORK/theme" "$THEME_DIR"
+    sudo chown -R root:root "$THEME_DIR"
+    printf '%s\n' "$THEME_REF" | sudo tee "$THEME_DIR/.rice-pinned-ref" >/dev/null
+    rm -rf "$WORK"
+    WORK=""
+    echo "    Installed $THEME_REF (pin recorded in $THEME_DIR/.rice-pinned-ref)"
+    if [[ -d "$THEME_DIR.bak.$TS" ]]; then
+        echo "    Previous copy kept at $THEME_DIR.bak.$TS — delete it once the new theme is confirmed."
+    fi
 fi
 
 echo "==> [4/5] Selecting 'astronaut' sub-theme in metadata.desktop"
@@ -75,18 +151,18 @@ if [[ -f "$META" ]]; then
     fi
     # Fail loudly BEFORE sddm.service is enabled: the ConfigFile value
     # the greeter will actually load must resolve to a file inside the
-    # clone. (The old sed wrote ' astronaut.conf' — unresolvable, so
-    # the greeter silently fell back to its defaults.)
+    # installed theme. (The old sed wrote ' astronaut.conf' —
+    # unresolvable, so the greeter silently fell back to its defaults.)
     CFG=$(sed -n 's|^ConfigFile=||p' "$META" | tail -n1 || true)
     CFG="${CFG#"${CFG%%[![:space:]]*}"}"
     CFG="${CFG%"${CFG##*[![:space:]]}"}"
     if [[ -z "$CFG" || ! -f "$THEME_DIR/$CFG" ]]; then
-        echo "  !! ConfigFile '$CFG' does not resolve inside the clone:"
+        echo "  !! ConfigFile '$CFG' does not resolve inside the installed theme:"
         echo "     $THEME_DIR/$CFG not found — theme layout changed upstream."
         echo "     NOT enabling sddm.service. Stop and review."
         exit 1
     fi
-    echo "    ConfigFile resolves inside the clone: $CFG"
+    echo "    ConfigFile resolves inside the installed theme: $CFG"
     if ! grep -q '^Name=' "$META"; then
         echo "    (metadata.desktop has no Name= line — review manually)"
     fi
