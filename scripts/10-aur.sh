@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 10-aur.sh — source-built packages using the reviewed AUR workflow:
 #   * Pull each AUR repo by git clone (no AUR helper).
-#   * Print the full PKGBUILD to stdout for human review (read it!).
+#   * Print the PKGBUILD and every other tracked file of the AUR repo
+#     (hooks, patches, scripts) to stdout for human review (read it!).
 #   * Wait for explicit confirmation before building.
 #   * Build with plain `makepkg -Cs` (clean + syncdeps + build, NO -i).
 #
@@ -79,13 +80,20 @@
 # The local repo you already have set up on this machine: read
 # LOCALREPO_DIR below and adjust if yours is elsewhere.
 #
-# Red flags that get flagged loudly when found in the PKGBUILD:
+# Red flags that get flagged loudly when found in the PKGBUILD or in
+# any *.install hook it ships (post_install/post_upgrade live in those
+# hook files, not in the PKGBUILD, so a PKGBUILD-only scan never sees
+# them):
 #   * `curl ... | bash`  or  `... | sh`  anywhere
 #   * anything that downloads something into the install step that
 #     isn't from the upstream source declared in source=()
 #   * post-registration network fetches
-# The review step below will print a warning if any of these appear
-# but it's still your job to read the PKGBUILD.
+#   * hooks that fetch (curl/wget), spawn `sh -c`, eval, decode
+#     base64, run systemctl, or write outside the package
+#   * a non-VCS source whose checksum is SKIP (unpinned source)
+# The review step below prints a warning for each of these and lists
+# the full contents of every tracked file in the repo — but it's still
+# your job to read them.
 
 set -euo pipefail
 
@@ -123,31 +131,190 @@ EOF
     fi
 }
 
-# Heuristic scan of a PKGBUILD for the red-flag patterns named in the policy.
+# Print the values of a bash array assignment (source=(), sha256sums=(),
+# ...) from a PKGBUILD, one per line, in order. Multiline arrays work;
+# entries containing whitespace do not (none do in practice upstream).
+pkgbuild_array_values() {
+    local name="$1" file="$2"
+    awk -v n="^${name}[[:space:]]*=" '
+        $0 ~ n {
+            inp = 1
+            sub(/^[^=]*=[[:space:]]*/, "")
+        }
+        inp {
+            line = $0
+            if (sub(/\)[^)]*$/, "", line))
+                inp = 0
+            m = split(line, toks, /[[:space:]]+/)
+            for (i = 1; i <= m; i++)
+                if (toks[i] != "" && toks[i] != "(")
+                    print toks[i]
+        }
+    ' "$file" | tr -d "()'\""
+}
+
+# Heuristic scan for the red-flag patterns named in the policy. Scans
+# the PKGBUILD plus every install hook it ships (*.install files and
+# whatever install= names) — post_install/post_upgrade live in those
+# hook files, not in the PKGBUILD, so a PKGBUILD-only scan never sees
+# them. A hit in a hook counts exactly like one in the PKGBUILD.
 scan_pkgbuild() {
-    local f="$1"
+    local pkgbuild="$1"
     local flags=0
-    if grep -En 'curl[^|]*\|\s*(bash|sh|zsh)' "$f" >/dev/null 2>&1; then
-        echo "  !! RED FLAG: curl|bash pattern detected"
-        flags=1
+    local f hits i idx s alg
+    local vcs_re='^(git|hg|svn|bzr|cvs)(\+[a-z]+)?://'
+    local -a scan_files=() hook_files=() candidates=() labels=() patterns=() srcs=() sums=()
+    local -A seen=() warned_skip=()
+
+    # Everything that can execute at install time: the PKGBUILD, every
+    # *.install hook in the repo, and any file install= points at (hook
+    # files do not have to end in .install). install=$var entries are
+    # left to the *.install glob — the file on disk ends in .install.
+    candidates=( "$pkgbuild" )
+    shopt -s nullglob
+    candidates+=( *.install )
+    shopt -u nullglob
+    while IFS= read -r f; do
+        [[ -n $f ]] && candidates+=( "$f" )
+    done < <(grep -E '^[[:space:]]*install[[:space:]]*=' "$pkgbuild" 2>/dev/null \
+                | sed -E "s/^[[:space:]]*install[[:space:]]*=//; s/[()'\"]//g" \
+                | tr -s '[:space:]' '\n' | grep -Ev '^\$|^$' || true)
+    for f in "${candidates[@]}"; do
+        [[ -f $f ]] || continue
+        [[ -n ${seen[$f]:-} ]] && continue
+        seen[$f]=1
+        scan_files+=( "$f" )
+    done
+    [[ ${#scan_files[@]} -gt 0 ]] || return 0
+    hook_files=( "${scan_files[@]:1}" )
+    if [[ ${#hook_files[@]} -gt 0 ]]; then
+        echo "  ==> install hooks included in this scan: ${hook_files[*]}"
     fi
-    if grep -En 'wget[^|]*\|\s*(bash|sh|zsh)' "$f" >/dev/null 2>&1; then
-        echo "  !! RED FLAG: wget|bash pattern detected"
-        flags=1
+
+    # Patterns checked across the PKGBUILD and every hook file.
+    labels=(
+        "curl|bash pattern detected"
+        "wget|bash pattern detected"
+        "suspicious source URL (pastebin/ipfs/ngrok)"
+        "git clone | sh detected"
+    )
+    patterns=(
+        'curl[^|]*\|\s*(bash|sh|zsh)'
+        'wget[^|]*\|\s*(bash|sh|zsh)'
+        'https?://[^/]*pastebin|[^/]*ipfs|[^/]*ngrok|[^/]*ngrok-free'
+        'git clone[^|]*\|\s*(bash|sh)'
+    )
+    for i in "${!labels[@]}"; do
+        hits="$(grep -EHn "${patterns[$i]}" "${scan_files[@]}" 2>/dev/null || true)"
+        if [[ -n $hits ]]; then
+            echo "  !! RED FLAG: ${labels[$i]}"
+            sed 's/^/       /' <<< "$hits"
+            flags=1
+        fi
+    done
+
+    # Patterns checked in the install hooks only: nothing a hook runs
+    # should fetch over the network, spawn a fresh shell, eval, decode
+    # base64, touch services, or write outside the package.
+    if [[ ${#hook_files[@]} -gt 0 ]]; then
+        labels=(
+            "network fetch (curl/wget) in install hook"
+            "sh -c in install hook"
+            "eval in install hook"
+            "base64 in install hook"
+            "systemctl in install hook — review whether you want that"
+            "write outside the package in install hook"
+        )
+        patterns=(
+            '(^|[^a-zA-Z])(curl|wget)([^a-zA-Z]|$)'
+            '(^|[^a-zA-Z])(ba|z|da)?sh[[:space:]]+-c([^a-zA-Z0-9]|$)'
+            '(^|[^a-zA-Z])eval([[:space:]]|\()'
+            '(^|[^a-zA-Z])base64([^a-zA-Z0-9]|$)'
+            '(^|[^a-zA-Z])systemctl([^a-zA-Z0-9]|$)'
+            '(^|[^a-zA-Z0-9{}$#!])((/etc|/usr|/opt|/var|/boot|/lib64?|/root|/home|/srv)([^a-zA-Z0-9]|$))'
+        )
+        for i in "${!labels[@]}"; do
+            hits="$(grep -EHn "${patterns[$i]}" "${hook_files[@]}" 2>/dev/null || true)"
+            if [[ -n $hits ]]; then
+                echo "  !! RED FLAG: ${labels[$i]}"
+                sed 's/^/       /' <<< "$hits"
+                flags=1
+            fi
+        done
     fi
-    if grep -En 'post_install|post_upgrade' "$f" >/dev/null 2>&1 && \
-       grep -En 'systemctl enable|systemctl start' "$f" >/dev/null 2>&1; then
-        echo "  !! INFO: PKGBUILD enables services in install hooks — review whether you want that."
-    fi
-    if grep -En 'https?://[^/]*pastebin|[^/]*ipfs|[^/]*ngrok|[^/]*ngrok-free' "$f" >/dev/null 2>&1; then
-        echo "  !! RED FLAG: suspicious source URL (pastebin/ipfs/ngrok)"
-        flags=1
-    fi
-    if grep -En 'git clone[^|]*\|\s*(bash|sh)' "$f" >/dev/null 2>&1; then
-        echo "  !! RED FLAG: git clone | sh detected"
-        flags=1
-    fi
+
+    # Unpinned sources: warn for every non-VCS source whose checksum is
+    # SKIP. VCS sources (git+https://, hg+ssh://, name::git+https://,
+    # ...) legitimately skip checksums, so they are exempt.
+    mapfile -t srcs < <(pkgbuild_array_values source "$pkgbuild")
+    for alg in sha512sums sha384sums sha256sums sha224sums sha1sums md5sums b2sums cksums; do
+        mapfile -t sums < <(pkgbuild_array_values "$alg" "$pkgbuild")
+        [[ ${#sums[@]} -eq 0 ]] && continue
+        if [[ ${#sums[@]} -eq ${#srcs[@]} ]]; then
+            for idx in "${!sums[@]}"; do
+                [[ ${sums[$idx]} == SKIP ]] || continue
+                s="${srcs[$idx]#*::}"
+                [[ $s =~ $vcs_re ]] && continue
+                [[ -z ${warned_skip[$idx]:-} ]] || continue
+                warned_skip[$idx]=1
+                echo "  !! RED FLAG: unpinned source — checksum is SKIP for: ${srcs[$idx]}"
+                flags=1
+            done
+        elif printf '%s\n' "${sums[@]}" | grep -qx 'SKIP'; then
+            for s in "${srcs[@]}"; do
+                [[ "${s#*::}" =~ $vcs_re ]] && continue
+                echo "  !! RED FLAG: unpinned source — a checksum is SKIP but source/checksum arrays could not be paired; review source=() by hand"
+                flags=1
+                break
+            done
+        fi
+    done
+
     return $flags
+}
+
+# Print every tracked file of the AUR clone for review: the git
+# ls-files manifest first, then the contents of every tracked text
+# file up to 400 lines, with line numbers — PKGBUILD first, then
+# *.install hooks, patches, scripts, and everything else. Files over
+# 400 lines or binary get name, size and sha256 instead of contents.
+print_review_files() {
+    local f n
+    local -a pkgs=() hooks=() patches=() scripts=() texts=() big=()
+
+    while IFS= read -r f; do
+        [[ -z $f ]] && continue
+        n=0
+        if grep -Iq . "$f" 2>/dev/null; then
+            n="$(wc -l < "$f")"
+        fi
+        if [[ $n -eq 0 || $n -gt 400 ]]; then
+            big+=( "$f" )
+        elif [[ $f == PKGBUILD ]]; then
+            pkgs+=( "$f" )
+        elif [[ $f == *.install ]]; then
+            hooks+=( "$f" )
+        elif [[ $f == *.patch || $f == *.diff ]]; then
+            patches+=( "$f" )
+        elif [[ $f == *.sh ]]; then
+            scripts+=( "$f" )
+        else
+            texts+=( "$f" )
+        fi
+    done < <(git ls-files)
+
+    echo "==> Tracked files in this repo (git ls-files):"
+    git ls-files | sed 's/^/    /'
+    echo
+    for f in "${pkgs[@]}" "${hooks[@]}" "${patches[@]}" "${scripts[@]}" "${texts[@]}"; do
+        echo "==> $f ($(wc -l < "$f") lines):"
+        nl -ba "./$f" | sed 's/^/  /'
+        echo
+    done
+    for f in "${big[@]}"; do
+        echo "==> $f : $(stat -c '%s' "./$f") bytes, sha256 $(sha256sum "./$f" | awk '{print $1}') — binary or over 400 lines, contents not printed"
+        echo
+    done
 }
 
 # Build + repo-add + install one AUR package.
@@ -171,12 +338,14 @@ build_one() {
 
     echo
     echo "------------------------------------------------------------------"
-    echo "==> PKGBUILD review  (read the whole thing below before approving)"
+    echo "==> File review  (scan output first, then every tracked file —"
+    echo "    read them all before approving)"
     echo "------------------------------------------------------------------"
     scan_pkgbuild ./PKGBUILD || true
     echo "------------------------------------------------------------------"
-    # Print the whole PKGBUILD, with line numbers, then ask for go-ahead.
-    nl -ba ./PKGBUILD | sed 's/^/  /'
+    # Print every tracked file (PKGBUILD first, hooks/patches/scripts
+    # next, big or binary files as name+size+sha256), then ask.
+    print_review_files
     echo "------------------------------------------------------------------"
     printf "==> Build %s now? [y/N] " "$pkgname"
     local yn
