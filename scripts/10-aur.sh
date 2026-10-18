@@ -3,6 +3,9 @@
 #   * Pull each AUR repo by git clone (no AUR helper).
 #   * Print the PKGBUILD and every other tracked file of the AUR repo
 #     (hooks, patches, scripts) to stdout for human review (read it!).
+#     On later runs, the clone's log and diff since the last approved
+#     review replace that full listing (the reviewed commit is stored
+#     in $BUILDROOT/.reviewed/<pkg> after each confirmed build).
 #   * Wait for explicit confirmation before building.
 #   * Build with plain `makepkg -Cs` (clean + syncdeps + build, NO -i).
 #
@@ -92,7 +95,8 @@
 #     base64, run systemctl, or write outside the package
 #   * a non-VCS source whose checksum is SKIP (unpinned source)
 # The review step below prints a warning for each of these and lists
-# the full contents of every tracked file in the repo — but it's still
+# the full contents of every tracked file in the repo (on later runs:
+# the log + diff since the last approved review) — but it's still
 # your job to read them.
 
 set -euo pipefail
@@ -336,16 +340,41 @@ build_one() {
 
     cd "$srcdir"
 
+    # Last reviewed commit for this package: $BUILDROOT/.reviewed/<pkg>
+    # holds the HEAD the user approved at the last confirmed build.
+    local reviewed="$BUILDROOT/.reviewed/$pkgname"
+    local old=""
+    if [[ -s "$reviewed" ]]; then
+        old="$(<"$reviewed")"
+        if ! git merge-base --is-ancestor "$old" HEAD 2>/dev/null; then
+            echo "==> Stored review commit ${old:0:12} is no longer in this repo's"
+            echo "    history (force-pushed AUR repo?). Falling back to full file review."
+            old=""
+        fi
+    fi
+
     echo
     echo "------------------------------------------------------------------"
-    echo "==> File review  (scan output first, then every tracked file —"
-    echo "    read them all before approving)"
+    echo "==> File review  (scan output first, then every tracked file on a"
+    echo "    first run — or the diff since your last review afterwards)"
     echo "------------------------------------------------------------------"
     scan_pkgbuild ./PKGBUILD || true
     echo "------------------------------------------------------------------"
-    # Print every tracked file (PKGBUILD first, hooks/patches/scripts
-    # next, big or binary files as name+size+sha256), then ask.
-    print_review_files
+    if [[ -n "$old" && "$old" == "$(git rev-parse HEAD)" ]]; then
+        echo "==> No changes since last review $(git rev-parse --short "$old")."
+    elif [[ -n "$old" ]]; then
+        echo "==> Changes since last review $(git rev-parse --short "$old"):"
+        echo
+        git log --oneline "$old..HEAD"
+        echo
+        git diff "$old..HEAD"
+        echo
+    else
+        # First run (or fallen-back) review: print every tracked file
+        # (PKGBUILD first, hooks/patches/scripts next, big or binary
+        # files as name+size+sha256), then ask.
+        print_review_files
+    fi
     echo "------------------------------------------------------------------"
     printf "==> Build %s now? [y/N] " "$pkgname"
     local yn
@@ -355,6 +384,11 @@ build_one() {
         SKIPPED_PACKAGES+=( "$pkgname" )
         return 0
     fi
+
+    # The user just approved this tree; remember the commit so the next
+    # run reviews the diff since here instead of re-printing everything.
+    mkdir -p "$BUILDROOT/.reviewed"
+    git rev-parse HEAD > "$reviewed"
 
     # Build with clean + sync-deps (NO -o: -o means "no build", see makepkg(8)).
     makepkg -Cs --noconfirm
