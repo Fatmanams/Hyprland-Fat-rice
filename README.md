@@ -211,8 +211,8 @@ edit target is the **repo checkout's** config file, not the deployed
 binary at build time, so edits are git-visible and survive the next
 deploy instead of being overwritten by it.
 For safety, the editor command must exactly match an allowlisted value:
-`zed --wait` (default), `nvim`, `neovide`, `lapce`, `ox`,
-`emacsclient --wait`, `nano`, `vim`, `vi`, or `hx`.
+`zed --wait` (default), `nvim`, `neovide`, `emacsclient --wait`, `nano`,
+`vim`, or `vi`. The menu uses each editor's native line-jump argument.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"

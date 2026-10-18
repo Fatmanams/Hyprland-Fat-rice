@@ -292,17 +292,20 @@ bool open_in_editor(const std::string& file, int line,
         const std::string v = trim(it->second);
         if (!v.empty()) editor = v;
     }
-    static const std::unordered_map<std::string, std::vector<std::string>> allowed = {
-        {"zed --wait", {"/usr/bin/zed", "--wait"}},
-        {"nvim", {"/usr/bin/nvim"}},
-        {"neovide", {"/usr/bin/neovide"}},
-        {"lapce", {"/usr/bin/lapce"}},
-        {"ox", {"/usr/bin/ox"}},
-        {"emacsclient --wait", {"/usr/bin/emacsclient", "--wait"}},
-        {"nano", {"/usr/bin/nano"}},
-        {"vim", {"/usr/bin/vim"}},
-        {"vi", {"/usr/bin/vi"}},
-        {"hx", {"/usr/bin/hx"}},
+    enum class LineArgument { file_suffix, plus_option };
+    struct Editor {
+        std::string executable;
+        std::vector<std::string> options;
+        LineArgument line_argument;
+    };
+    static const std::unordered_map<std::string, Editor> allowed = {
+        {"zed --wait", {"/usr/bin/zed", {"--wait"}, LineArgument::file_suffix}},
+        {"nvim", {"/usr/bin/nvim", {}, LineArgument::plus_option}},
+        {"neovide", {"/usr/bin/neovide", {}, LineArgument::plus_option}},
+        {"emacsclient --wait", {"/usr/bin/emacsclient", {"--wait"}, LineArgument::plus_option}},
+        {"nano", {"/usr/bin/nano", {}, LineArgument::plus_option}},
+        {"vim", {"/usr/bin/vim", {}, LineArgument::plus_option}},
+        {"vi", {"/usr/bin/vi", {}, LineArgument::plus_option}},
     };
     const auto found = allowed.find(editor);
     if (found == allowed.end()) {
@@ -310,8 +313,14 @@ bool open_in_editor(const std::string& file, int line,
                   << editor << '\n';
         return false;
     }
-    std::vector<std::string> argv_s = found->second;
-    argv_s.push_back(file + ":" + std::to_string(line));
+    std::vector<std::string> argv_s{found->second.executable};
+    argv_s.insert(argv_s.end(), found->second.options.begin(),
+                  found->second.options.end());
+    if (found->second.line_argument == LineArgument::plus_option)
+        argv_s.push_back("+" + std::to_string(line));
+    argv_s.push_back(found->second.line_argument == LineArgument::file_suffix
+                         ? file + ":" + std::to_string(line)
+                         : file);
 
     const pid_t pid = ::fork();
     if (pid < 0) {
