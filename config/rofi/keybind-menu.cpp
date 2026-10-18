@@ -28,6 +28,7 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <pwd.h>
 #include <unistd.h>
 
 #include <cerrno>
@@ -291,15 +292,35 @@ bool open_in_editor(const std::string& file, int line,
         const std::string v = trim(it->second);
         if (!v.empty()) editor = v;
     }
-    // $editor is a command line ("zed --wait"), not an argv; split on
-    // whitespace. Values here are simple flags, no quoting/escaping needed.
-    std::vector<std::string> argv_s;
-    {
-        std::istringstream split(editor);
-        for (std::string word; split >> word;) argv_s.push_back(word);
+    enum class LineArgument { file_suffix, plus_option };
+    struct Editor {
+        std::string executable;
+        std::vector<std::string> options;
+        LineArgument line_argument;
+    };
+    static const std::unordered_map<std::string, Editor> allowed = {
+        {"zed --wait", {"/usr/bin/zed", {"--wait"}, LineArgument::file_suffix}},
+        {"nvim", {"/usr/bin/nvim", {}, LineArgument::plus_option}},
+        {"neovide", {"/usr/bin/neovide", {}, LineArgument::plus_option}},
+        {"emacsclient --wait", {"/usr/bin/emacsclient", {"--wait"}, LineArgument::plus_option}},
+        {"nano", {"/usr/bin/nano", {}, LineArgument::plus_option}},
+        {"vim", {"/usr/bin/vim", {}, LineArgument::plus_option}},
+        {"vi", {"/usr/bin/vi", {}, LineArgument::plus_option}},
+    };
+    const auto found = allowed.find(editor);
+    if (found == allowed.end()) {
+        std::cerr << "keybind-menu: configured editor is not allowlisted: "
+                  << editor << '\n';
+        return false;
     }
-    if (argv_s.empty()) return false;
-    argv_s.push_back(file + ":" + std::to_string(line));
+    std::vector<std::string> argv_s{found->second.executable};
+    argv_s.insert(argv_s.end(), found->second.options.begin(),
+                  found->second.options.end());
+    if (found->second.line_argument == LineArgument::plus_option)
+        argv_s.push_back("+" + std::to_string(line));
+    argv_s.push_back(found->second.line_argument == LineArgument::file_suffix
+                         ? file + ":" + std::to_string(line)
+                         : file);
 
     const pid_t pid = ::fork();
     if (pid < 0) {
@@ -311,7 +332,7 @@ bool open_in_editor(const std::string& file, int line,
         std::vector<const char*> argv;
         for (const std::string& a : argv_s) argv.push_back(a.c_str());
         argv.push_back(nullptr);
-        ::execvp(argv[0], const_cast<char* const*>(argv.data()));
+        ::execv(argv[0], const_cast<char* const*>(argv.data()));
         std::cerr << "keybind-menu: exec " << argv[0] << ": "
                   << std::strerror(errno) << '\n';
         ::_exit(127);
@@ -324,6 +345,35 @@ bool open_in_editor(const std::string& file, int line,
     return true;
 }
 
+std::string current_home_directory() {
+    const long suggested_size = ::sysconf(_SC_GETPW_R_SIZE_MAX);
+    std::vector<char> buffer(
+        suggested_size > 0 ? static_cast<std::size_t>(suggested_size) : 16384);
+    struct passwd account {};
+    struct passwd* result = nullptr;
+    int error = 0;
+    do {
+        error = ::getpwuid_r(::getuid(), &account, buffer.data(), buffer.size(),
+                             &result);
+        if (error != ERANGE) break;
+        if (buffer.size() > buffer.max_size() / 2) {
+            std::cerr << "keybind-menu: account home lookup buffer is too large\n";
+            return {};
+        }
+        buffer.resize(buffer.size() * 2);
+    } while (true);
+    if (error != 0) {
+        std::cerr << "keybind-menu: could not resolve account home: "
+                  << std::strerror(error) << '\n';
+        return {};
+    }
+    if (result == nullptr || account.pw_dir == nullptr || account.pw_dir[0] == '\0') {
+        std::cerr << "keybind-menu: no home directory is registered for this account\n";
+        return {};
+    }
+    return account.pw_dir;
+}
+
 }  // namespace
 
 int main() {
@@ -331,16 +381,13 @@ int main() {
     // this process with SIGPIPE — the error path below reports it.
     std::signal(SIGPIPE, SIG_IGN);
 
-    const char* home = std::getenv("HOME");
-    if (home == nullptr || *home == '\0') {
-        std::cerr << "keybind-menu: $HOME is not set\n";
-        return 1;
-    }
+    const std::string home = current_home_directory();
+    if (home.empty()) return 1;
 
     std::unordered_map<std::string, std::string> vars;
     std::vector<Bind> binds;
-    const std::string extra = std::string(home) + "/.config/hypr/keybinds-extra.conf";
-    const std::string main_conf = std::string(home) + "/.config/hypr/hyprland.conf";
+    const std::string extra = home + "/.config/hypr/keybinds-extra.conf";
+    const std::string main_conf = home + "/.config/hypr/hyprland.conf";
     parse_file(extra, vars, binds);
     parse_file(main_conf, vars, binds);
     if (binds.empty()) {
