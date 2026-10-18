@@ -432,8 +432,12 @@ chmod +x scripts/*.sh
 ./scripts/00-base.sh
 
 # 2. AUR builds — reviewed PKGBUILD, plain makepkg (build only),
-#    repo-add into your local repo at /var/cache/pacman/localrepo,
-#    then pacman -S from there. Pause+review each source build.
+#    repo-add into the root-owned local repo at
+#    /var/cache/pacman/localrepo, then pacman -S from there.
+#    Pause+review each source build. validpgpkeys not yet in your
+#    keyring get a y/N import prompt before makepkg. A failed build
+#    is recorded FAILED and the queue moves on; the script exits
+#    non-zero if anything failed, so fix the cause and re-run it.
 ./scripts/10-aur.sh
 
 # 3. SDDM theme — pinned-commit copy for the static asset. Snapshots
@@ -974,7 +978,10 @@ implementation choice rather than an additional policy requirement.
   official repos; pays for itself against the AUR build queue
 - Local repo at `/var/cache/pacman/localrepo` (`localrepo`,
   `SigLevel = Optional TrustAll`) — `10-aur.sh` registers it
-  into `/etc/pacman.conf` once if not already present
+  into `/etc/pacman.conf` once if not already present. The repo
+  directory is root:root 0755 with 0644 packages/db — root pacman
+  installs from it, so nothing user-writable may sit in it (an
+  older user-owned copy is migrated automatically on first run)
 
 ### Gotchas handled proactively
 
