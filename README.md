@@ -210,6 +210,9 @@ edit target is the **repo checkout's** config file, not the deployed
 `~/.config` copy — 30-dotfiles.sh bakes the checkout path into the
 binary at build time, so edits are git-visible and survive the next
 deploy instead of being overwritten by it.
+For safety, the editor command must exactly match an allowlisted value:
+`zed --wait` (default), `nvim`, `neovide`, `lapce`, `ox`,
+`emacsclient --wait`, `nano`, `vim`, `vi`, or `hx`.
 - `gamemode`, `gamescope`, `mangohud`, `lib32-mangohud` — in `extra` + `multilib`
 
 > The policy is "use AUR for whatever has no official-repo equivalent"
