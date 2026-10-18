@@ -14,11 +14,26 @@
 #     per makepkg(8). With `-o`, no .pkg.tar.zst is produced, and under
 #     `set -euo pipefail` build_one() dies after extraction. `-s` alone
 #     is sufficient for sync-deps + build.
-#   * Add the resulting .pkg.tar.zst to the local repo with repo-add.
+#   * Add the resulting .pkg.tar.zst to the local repo with repo-add —
+#     copied in as root (`sudo install -m0644`) and registered with
+#     `sudo repo-add`. The repo directory is root:root 0755 with 0644
+#     files: root pacman installs from it, so nothing user-writable may
+#     sit in its path (the directory stays world-readable — pacman
+#     downloads from it as the alpm user).
 #   * Install via `sudo pacman -S <pkgname>` from that local repo
 #     (NOT `pacman -U` — `-S` resolves from the [localrepo] section
 #     registered in /etc/pacman.conf, which keeps dependency tracking
 #     honest; `-U` would short-circuit that).
+#   * Before makepkg: every validpgpkeys entry missing from the keyring
+#     is printed with the exact `gpg --recv-keys <fpr>` command and a
+#     y/N prompt — keys are NEVER imported silently. Declining (or a
+#     failed import) records the package as FAILED and moves on; with
+#     the key missing, makepkg would abort on it anyway.
+#   * Containment: a makepkg failure or a build that produces no
+#     .pkg.tar.zst records the package in FAILED_PACKAGES and the
+#     queue continues. The end-of-run summary lists SKIPPED and FAILED
+#     separately, and the script exits non-zero when anything FAILED
+#     (so 60-update.sh still treats phase 10 as failed).
 #
 # AUR-only packages in this build (per the rule-5 up-front audit):
 #
@@ -81,7 +96,9 @@
 #     python-pywal (old fork — we still use python-pywal16 from AUR by choice)
 #
 # The local repo you already have set up on this machine: read
-# LOCALREPO_DIR below and adjust if yours is elsewhere.
+# LOCALREPO_DIR below and adjust if yours is elsewhere. An existing
+# user-owned repo directory (the layout this script created before it
+# was hardened) is migrated to root:root once, with a message.
 #
 # Red flags that get flagged loudly when found in the PKGBUILD or in
 # any *.install hook it ships (post_install/post_upgrade live in those
@@ -114,15 +131,41 @@ AUR_BASE="https://aur.archlinux.org"
 
 mkdir -p "$BUILDROOT"
 SKIPPED_PACKAGES=()
+FAILED_PACKAGES=()
 
 # Ensure local repo is set up + registered in pacman.conf once.
+#
+# Hardening: the repo is root:root 0755 with 0644 package/db files.
+# Root pacman consumes this repo, so a user-writable copy would let
+# anything running as $USER plant a newer package under an
+# already-reviewed name and have the next `pacman -Syu` install it as
+# root. The directory stays world-readable: pacman downloads from it
+# as the dedicated alpm user. An existing user-owned directory (the
+# pre-hardening layout) is migrated once, with a message; runs over
+# an already-root-owned repo are no-ops.
 setup_local_repo() {
     if [[ ! -d "$LOCALREPO_DIR" ]]; then
+        echo "==> Creating local repo directory: $LOCALREPO_DIR"
         sudo mkdir -p "$LOCALREPO_DIR"
-        sudo chown "$USER":"$USER" "$LOCALREPO_DIR"
+    fi
+    local owner perms
+    owner="$(stat -c '%U' "$LOCALREPO_DIR")"
+    perms="$(stat -c '%a' "$LOCALREPO_DIR")"
+    if [[ "$owner" != "root" ]]; then
+        echo "==> $LOCALREPO_DIR is owned by '$owner', not root — migrating"
+        echo "    to root:root (root pacman installs from this repo; a"
+        echo "    user-writable one would let anything running as $USER"
+        echo "    plant packages pacman then installs as root)"
+        sudo chown -R root:root "$LOCALREPO_DIR"
+        sudo find "$LOCALREPO_DIR" -mindepth 1 -type f -exec chmod 0644 {} +
+    fi
+    if [[ "$perms" != "755" ]]; then
+        echo "==> $LOCALREPO_DIR mode is $perms, fixing to 755 (pacman"
+        echo "    downloads from it as the alpm user)"
+        sudo chmod 0755 "$LOCALREPO_DIR"
     fi
     if [[ ! -f "$LOCALREPO_DIR/$LOCALREPO_NAME.db.tar.zst" ]]; then
-        ( cd "$LOCALREPO_DIR" && repo-add "$LOCALREPO_NAME.db.tar.zst" )
+        sudo repo-add "$LOCALREPO_DIR/$LOCALREPO_NAME.db.tar.zst"
     fi
     if ! grep -q "^\[$LOCALREPO_NAME\]" /etc/pacman.conf; then
         echo "==> Registering [$LOCALREPO_NAME] in /etc/pacman.conf"
@@ -321,6 +364,52 @@ print_review_files() {
     done
 }
 
+# Every validpgpkeys entry that is missing from the user's keyring is
+# printed with the exact import command and gets a y/N prompt BEFORE
+# makepkg runs — a key is never imported silently. Declining (or a
+# failed import) fails this check so build_one records the package as
+# FAILED: with the key missing, makepkg would abort on source
+# signature verification anyway ("unknown public key").
+# Runs in the package's clone directory (reads .SRCINFO via
+# `makepkg --printsrcinfo`, same parser makepkg itself uses).
+ensure_pgp_keys() {
+    local pkgname="$1" fpr yn
+    local -a missing=()
+    while IFS= read -r fpr; do
+        [[ -n "$fpr" ]] || continue
+        gpg --list-keys "$fpr" >/dev/null 2>&1 || missing+=( "$fpr" )
+    done < <(makepkg --printsrcinfo 2>/dev/null \
+                | awk '$1 == "validpgpkeys" { print $3 }')
+    if [[ ${#missing[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    echo "==> $pkgname pins its sources with validpgpkeys; key(s) missing"
+    echo "    from your keyring (makepkg would abort on them):"
+    for fpr in "${missing[@]}"; do
+        echo "        $fpr"
+    done
+    for fpr in "${missing[@]}"; do
+        echo "==> Exact import command: gpg --recv-keys $fpr"
+        printf "==> Import %s into your keyring now? [y/N] " "$fpr"
+        read -r yn
+        if [[ "$yn" =~ ^[Yy]$ ]]; then
+            if gpg --recv-keys "$fpr"; then
+                echo "    Imported $fpr."
+            else
+                echo "  !! Import of $fpr failed — recording $pkgname as FAILED."
+                return 1
+            fi
+        else
+            echo "    Declined. Not building $pkgname: its sources are"
+            echo "    signature-pinned, and without the key makepkg cannot"
+            echo "    verify them. Recording $pkgname as FAILED."
+            return 1
+        fi
+    done
+    return 0
+}
+
 # Build + repo-add + install one AUR package.
 build_one() {
     local pkgname="$1"
@@ -390,21 +479,39 @@ build_one() {
     mkdir -p "$BUILDROOT/.reviewed"
     git rev-parse HEAD > "$reviewed"
 
-    # Build with clean + sync-deps (NO -o: -o means "no build", see makepkg(8)).
-    makepkg -Cs --noconfirm
+    # validpgpkeys gate: explicit y/N import prompt per missing key.
+    # Declined or failed import → FAILED (recorded), queue continues.
+    if ! ensure_pgp_keys "$pkgname"; then
+        FAILED_PACKAGES+=( "$pkgname" )
+        return 0
+    fi
+
+    # Build with clean + sync-deps (NO -o: -o means "no build", see
+    # makepkg(8)). A makepkg failure is contained: record FAILED and
+    # let the rest of the queue run; the summary + exit code report it.
+    if ! makepkg -Cs --noconfirm; then
+        echo "  !! makepkg failed for $pkgname — recording FAILED, continuing."
+        FAILED_PACKAGES+=( "$pkgname" )
+        return 0
+    fi
 
     # Add produced packages to the local repo, then pacman-install from there.
     shopt -s nullglob
     local built=( "$srcdir"/*.pkg.tar.zst )
     shopt -u nullglob
     if [[ ${#built[@]} -eq 0 ]]; then
-        echo "  !! No .pkg.tar.zst produced; something went wrong. Skipping install."
-        return 1
+        echo "  !! No .pkg.tar.zst produced — recording $pkgname as FAILED,"
+        echo "     continuing."
+        FAILED_PACKAGES+=( "$pkgname" )
+        return 0
     fi
     for pkg in "${built[@]}"; do
-        echo "==> repo-add: $pkg -> $LOCALREPO_DIR"
-        cp "$pkg" "$LOCALREPO_DIR/"
-        ( cd "$LOCALREPO_DIR" && repo-add "$LOCALREPO_NAME.db.tar.zst" "$(basename "$pkg")" )
+        echo "==> repo-add: $(basename "$pkg") -> $LOCALREPO_DIR"
+        # Copy as root with explicit 0644 — the local repo must hold only
+        # root-owned, non-user-writable files — then register as root too.
+        sudo install -m0644 "$pkg" "$LOCALREPO_DIR/"
+        sudo repo-add "$LOCALREPO_DIR/$LOCALREPO_NAME.db.tar.zst" \
+            "$LOCALREPO_DIR/$(basename "$pkg")"
     done
     # Install by name from the local repo explicitly.
     sudo pacman -S --noconfirm --needed "$pkgname"
@@ -439,7 +546,17 @@ done
 echo
 echo "==> AUR build pass done."
 if [[ ${#SKIPPED_PACKAGES[@]} -gt 0 ]]; then
-    echo "==> Skipped (not installed): ${SKIPPED_PACKAGES[*]}"
+    echo "==> Skipped (user declined the build): ${SKIPPED_PACKAGES[*]}"
+fi
+if [[ ${#FAILED_PACKAGES[@]} -gt 0 ]]; then
+    echo "==> FAILED: ${FAILED_PACKAGES[*]}"
 fi
 echo "==> Requested from [$LOCALREPO_NAME]: ${PACKAGES[*]}"
+if [[ ${#FAILED_PACKAGES[@]} -gt 0 ]]; then
+    echo "  !! ${#FAILED_PACKAGES[@]} AUR package(s) FAILED — fix the cause"
+    echo "     above and re-run; already-approved builds go straight to the"
+    echo "     since-last-review diff next time. Exiting non-zero so"
+    echo "     60-update.sh treats phase 10 as failed."
+    exit 1
+fi
 echo "==> Next: ./20-sddm.sh"
