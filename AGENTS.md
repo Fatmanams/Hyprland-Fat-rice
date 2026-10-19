@@ -117,7 +117,8 @@ Every selected source build goes through `scripts/10-aur.sh`'s
 │   │                          deployed.env-vs-checkout drift (checkout moved
 │   │                          without a redeploy)
 │   ├── 60-update.sh           ff-only update from origin/<branch>: preflight,
-│   │                          fetch, snapshot, lint gate, re-run install, gate
+│   │                          fetch, [y/N/d] review of sudo-run changes,
+│   │                          snapshot, lint gate, re-run install, gate
 │   ├── 61-rollback.sh         auto-invoked on gate failure; git+config restore,
 │   │                          rebuild, re-gate; stands alone too
 │   ├── install-zed.sh         standalone Zed-only installer (no full rice deploy)
