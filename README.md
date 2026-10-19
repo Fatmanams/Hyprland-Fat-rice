@@ -639,6 +639,7 @@ record:
 ```bash
 scripts/60-update.sh            # update from origin/main + redeploy
 scripts/60-update.sh --dry-run  # show what would land, change nothing
+scripts/60-update.sh --yes      # unattended run: skip the review prompt
 scripts/61-rollback.sh          # by hand, after any failed update
 scripts/61-rollback.sh --backup ~/.config-backup-<TS>   # config-only
                                  # restore, works without update state
@@ -650,7 +651,15 @@ scripts/61-rollback.sh --backup ~/.config-backup-<TS>   # config-only
    checkout, clean worktree (`--stash` stashes for you), `deployed.env`
    must exist, another updater must not hold the lock.
 2. **Fetch + report** — `git fetch --tags`, then `git log --oneline
-   HEAD..origin/main` so you see what lands before it lands.
+   HEAD..origin/main` so you see what lands before it lands. If the
+   pending commits touch a path that re-runs with sudo (`scripts/`,
+   `config/systemd`, `config/hypr`), a `git diff --stat` of those
+   changes follows and the run stops at a `[y/N/d]` prompt before the
+   snapshot: **y** applies, **d** pages the full `scripts/` diff
+   through the pager and asks again, and anything else — **N**, the
+   default — aborts with exit 1 and nothing written. `--yes` skips
+   the prompt for unattended runs; `--dry-run` prints the same summary
+   without prompting and writes nothing.
 3. **Fail-safe snapshot** — snapper on btrfs, Timeshift otherwise (same
    detection as `45-snapshots.sh`). No tool, no update — take the escape
    hatch away and it refuses to run. Override with `--no-snapshot`.

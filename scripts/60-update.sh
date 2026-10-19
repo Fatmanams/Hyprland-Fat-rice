@@ -7,7 +7,15 @@
 #                    update lock free? --branch exists on origin?
 #                    Anything wrong here exits 2 with the reason.
 #   2/8 Fetch      — git fetch --tags + show `git log HEAD..origin/<branch>`.
-#                    --dry-run stops here (nothing written). Offline = abort.
+#                    When the pending commits touch the paths that re-run
+#                    with sudo (scripts/, config/systemd, config/hypr),
+#                    print a scoped `git diff --stat` and ask [y/N/d]
+#                    before phase 3 writes anything: y proceeds, N (the
+#                    default) aborts with exit 1 and nothing written, d
+#                    pages the full scripts/ diff and asks again. --yes
+#                    skips the prompt; --dry-run prints the same summary,
+#                    never prompts, and stops here (nothing written).
+#                    Offline = abort.
 #   3/8 Snapshot   — snapper (btrfs) or timeshift (else), detected the same
 #                    way 45-snapshots.sh does. Missing/failed tool = abort,
 #                    unless --no-snapshot. Records the return ticket.
@@ -39,9 +47,9 @@
 # pipeline, so a feature branch gets full-system testing before its PR
 # merges. `--branch main` (or plain 60-update.sh) tracks main again.
 #
-# Exit codes: 0 ok | 1 aborted (offline / non-ff / snapshot / lint / a gate
-# failed but rollback succeeded) | 2 preflight refusal | 3 gate failed AND
-# rollback failed.
+# Exit codes: 0 ok | 1 aborted (offline / review declined / non-ff /
+# snapshot / lint / a gate failed but rollback succeeded) | 2 preflight
+# refusal | 3 gate failed AND rollback failed.
 
 set -euo pipefail
 
@@ -86,6 +94,7 @@ STATE_DIR=$(rice_state_dir)
 
 # ---- args -------------------------------------------------------------------
 
+ASSUME_YES=0
 BRANCH=main
 DRY_RUN=0
 NO_SNAPSHOT=0
@@ -95,11 +104,12 @@ while [[ $# -gt 0 ]]; do
         --dry-run)     DRY_RUN=1; shift ;;
         --no-snapshot) NO_SNAPSHOT=1; shift ;;
         --stash)       STASH=1; shift ;;
+        --yes)         ASSUME_YES=1; shift ;;
         --branch)
             [[ -n ${2:-} ]] || { echo "--branch needs a value" >&2; exit 2; }
             BRANCH=$2; shift 2 ;;
         -h|--help)
-            printf 'usage: %s [--branch <name>] [--dry-run] [--no-snapshot] [--stash]\n' \
+            printf 'usage: %s [--branch <name>] [--dry-run] [--no-snapshot] [--stash] [--yes]\n' \
                 "$0"
             exit 0 ;;
         *) echo "unknown argument: $1 (try --help)" >&2; exit 2 ;;
@@ -174,12 +184,29 @@ fi
 TARGET="origin/$BRANCH"
 TARGET_COMMIT=$(git -C "$REPO_ROOT" rev-parse "$TARGET")
 
+# Paths whose changes re-run with sudo when phase 6 redeploys: the
+# install/update scripts themselves, the user systemd units, and the
+# hypr shell helpers. Everything else this repo ships lands in
+# ~/.config and only runs when you invoke it, so a pending change
+# under these — and only these — gets the review gate at the end of
+# this phase (and the same summary from --dry-run).
+SUDO_SCOPE=(scripts/ config/systemd config/hypr)
+
+sudo_review_summary() {
+    echo "    pending changes in files that re-run with sudo"
+    echo "    (scripts/, config/systemd, config/hypr):"
+    git -C "$REPO_ROOT" diff --stat "HEAD..$TARGET" -- "${SUDO_SCOPE[@]}"
+}
+
 echo "    HEAD..$TARGET:"
 git -C "$REPO_ROOT" log --oneline "HEAD..$TARGET"
 
 BEHIND=$(git -C "$REPO_ROOT" rev-list --count "HEAD..$TARGET" 2>/dev/null || echo 0)
 
 if [[ $DRY_RUN -eq 1 ]]; then
+    if [[ -n $(git -C "$REPO_ROOT" diff --name-only "HEAD..$TARGET" -- "${SUDO_SCOPE[@]}") ]]; then
+        sudo_review_summary
+    fi
     echo "==> dry-run: $BEHIND commit(s) behind $TARGET. Nothing was written:"
     echo "    no snapshot, no advance, no deploy."
     exit 0
@@ -205,6 +232,38 @@ fi
 
 OLD_VER=$(rice_version_of "$REPO_ROOT")
 NEW_VER=$(git -C "$REPO_ROOT" describe --tags --always "$TARGET_COMMIT")
+
+# Sudo-run review gate — the last step of phase 2, before the snapshot
+# takes anything. Pending changes under SUDO_SCOPE are what phase 6 will
+# execute with sudo, so they get an explicit decision here; the lint
+# gate only runs on the merged tree, and a declined update never gets
+# that far. Anything but y (or d) counts as N: abort with exit 1 and
+# the machine exactly as it was. --yes answers yes without asking, for
+# unattended runs.
+if [[ -n $(git -C "$REPO_ROOT" diff --name-only "HEAD..$TARGET" -- "${SUDO_SCOPE[@]}") ]]; then
+    if [[ $ASSUME_YES -eq 1 ]]; then
+        echo "    --yes given: skipping the sudo-run review prompt."
+    else
+        sudo_review_summary
+        while true; do
+            read -r -p "    Apply this update? [y/N/d] " answer || answer=''
+            case "$answer" in
+                y|Y|yes|Yes|YES)
+                    break ;;
+                d|D|diff)
+                    # Full diff of the scripts that re-run with sudo, paged;
+                    # config-side changes stay summarized in the --stat above.
+                    git -C "$REPO_ROOT" diff "HEAD..$TARGET" -- scripts/ \
+                        | "${PAGER:-less}" || true ;;
+                *)
+                    echo "    not y — treating as N (the default). No snapshot was" >&2
+                    echo "    taken, nothing advanced, nothing deployed." >&2
+                    rice_log "update-abort branch=$BRANCH reason=sudo-review-declined target=$TARGET_COMMIT"
+                    exit 1 ;;
+            esac
+        done
+    fi
+fi
 
 # ---- 3/8 snapshot -------------------------------------------------------------
 
